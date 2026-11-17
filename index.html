@@ -1,0 +1,2961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CXP Live 2</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg-deep:#000a14;
+    --bg-mid:#0F2A44;
+    --bg-panel:#122E4B;
+    --line:rgba(179,179,179,0.22);
+    --text:#FFFFFF;
+    --text-muted:#B3B3B3;
+    --thermal:#0066FF;
+    --lift:#00B2FF;
+    --sink:#E85D5D;
+    --font-display: 'Roboto', sans-serif;
+    --font-body: 'Roboto', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(ellipse at top, var(--bg-mid) 0%, var(--bg-deep) 65%);
+    color:var(--text);
+    font-family:var(--font-body);
+    font-size:12px;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  .wrap{ max-width:920px; margin:0 auto; padding:28px 20px 80px; }
+
+  header{ position:relative; padding:18px 0 30px; text-align:center; }
+  .sub{ margin-left:auto; margin-right:auto; }
+
+  h1{ font-family:var(--font-display); font-weight:700; font-size:28px; margin:0 0 4px; letter-spacing:-0.01em; }
+  .eyebrow{ font-family:var(--font-mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--thermal); margin:0 0 10px; }
+  .sub{ color:var(--text-muted); font-size:14.5px; line-height:1.55; max-width:60ch; }
+
+  .conn-status{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono);
+    font-size:11.5px; color:var(--text-muted); margin-top:12px; padding:5px 10px;
+    border:1px solid var(--line); border-radius:20px;
+  }
+  .conn-dot{ width:7px; height:7px; border-radius:50%; background:var(--text-muted); }
+  .conn-status.ok .conn-dot{ background:var(--lift); }
+  .conn-status.err .conn-dot{ background:var(--sink); }
+
+  .tabs{ display:flex; gap:4px; margin:28px 0 22px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .tab{
+    font-family:var(--font-mono); font-size:15.6px; font-weight:700; letter-spacing:0.04em;
+    background:none; border:none; color:var(--text-muted); cursor:pointer;
+    padding:10px 4px; margin-right:22px; border-bottom:2px solid transparent;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .tab:hover{ color:var(--text); }
+  .tab.active{ color:var(--text); border-bottom-color:var(--thermal); }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; animation: fadein .25s ease; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .view-toggle{
+    font-family:var(--font-mono); font-size:12.5px; font-weight:600;
+    background:none; border:1px solid var(--line); color:var(--text-muted); cursor:pointer;
+    padding:8px 16px; border-radius:7px; transition: all .15s ease;
+  }
+  .view-toggle.active{ background:var(--thermal); color:#fff; border-color:var(--thermal); }
+  .view-toggle:hover:not(.active){ border-color:var(--thermal); color:var(--text); }
+
+  .card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:10px; padding:22px; margin-bottom:16px; }
+  .card h2{ font-family:var(--font-display); font-size:16px; margin:0 0 4px; font-weight:600; }
+  .card .hint{ color:var(--text-muted); font-size:13px; margin:0 0 16px; line-height:1.5;}
+
+  label{ display:block; font-size:12.5px; color:var(--text-muted); margin-bottom:6px; font-family:var(--font-mono); letter-spacing:0.02em;}
+
+  input[type=text], input[type=password], input[type=date], input[type=file], select, textarea{
+    width:100%; background:var(--bg-deep); border:1px solid var(--line); color:var(--text);
+    border-radius:7px; padding:10px 12px; font-size:14px; font-family:var(--font-body);
+  }
+  input[type=text]:focus, input[type=password]:focus, select:focus{ outline:none; border-color:var(--thermal); }
+  input.pin-input{ font-family:var(--font-mono); font-size:20px; letter-spacing:8px; text-align:center; }
+  #newPin2::placeholder{ font-size:13px; letter-spacing:normal; }
+
+  .combo{ position:relative; }
+  .combo-list{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--bg-deep);
+    border:1px solid var(--line); border-radius:7px; max-height:260px; overflow-y:auto;
+    z-index:10; display:none;
+  }
+  .combo-list.show{ display:block; }
+  .combo-item{ padding:9px 12px; font-size:13.5px; cursor:pointer; }
+  .combo-item:hover{ background:var(--bg-mid); }
+  .combo-item .top{ display:flex; justify-content:space-between; gap:10px; }
+  .combo-item .pid{ font-family:var(--font-mono); color:var(--text-muted); font-size:12px; }
+  .combo-item .glider{ font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+  .selected-pilot{
+    margin-top:10px; padding:10px 12px; background:var(--bg-deep); border:1px solid var(--lift);
+    border-radius:7px; font-size:13.5px; display:none;
+  }
+  .selected-pilot.show{ display:block; }
+  .selected-pilot .top{ display:flex; align-items:center; justify-content:space-between; }
+  .selected-pilot .pid{ font-family:var(--font-mono); color:var(--lift); }
+  .selected-pilot .glider{ font-size:12px; color:var(--text-muted); margin-top:4px; }
+
+  .dropzone{
+    margin-top:14px; border:1.5px dashed var(--line); border-radius:9px; padding:28px 16px;
+    text-align:center; cursor:pointer; transition:border-color .15s ease, background .15s ease;
+  }
+  .dropzone:hover, .dropzone.drag{ border-color:var(--thermal); background:rgba(255,122,61,0.05); }
+  .dropzone .icon{ font-size:22px; margin-bottom:6px; }
+  .dropzone .main{ font-size:13.5px; }
+  .dropzone .fine{ font-size:12px; color:var(--text-muted); margin-top:4px; }
+  .dropzone input{ display:none; }
+
+  .preview{ margin-top:14px; padding:14px; background:var(--bg-deep); border:1px solid var(--line); border-radius:7px; display:none; }
+  .preview.show{ display:block; }
+  .preview .row{ display:flex; justify-content:space-between; font-size:13px; padding:3px 0; }
+  .preview .row .k{ color:var(--text-muted); }
+  .preview .filename{ font-family:var(--font-mono); color:var(--lift); font-size:13.5px; word-break:break-all; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .preview .warn{ color:var(--sink); font-size:12.5px; margin-top:6px; }
+
+  button.primary, a.primary{
+    margin-top:14px; width:100%; background:var(--thermal); color:#111; border:none;
+    font-family:var(--font-display); font-weight:600; font-size:14px; padding:12px;
+    border-radius:7px; cursor:pointer; transition:background .15s ease;
+    display:block; text-align:center; text-decoration:none; box-sizing:border-box;
+  }
+  button.primary:hover, a.primary:hover{ background:#ff8c57; }
+  button.primary:disabled{ background:var(--line); color:var(--text-muted); cursor:not-allowed; }
+  .result-grid{ display:none; grid-template-columns:repeat(3,1fr); gap:10px; max-width:560px; margin:14px auto 0; }
+  .result-grid.show{ display:grid; }
+  .result-grid a{
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    min-height:64px; padding:10px 6px; box-sizing:border-box; border-radius:8px;
+    background:var(--thermal); color:#111; text-decoration:none;
+    font-family:var(--font-display); font-weight:700; font-size:15px; line-height:1.2;
+    transition:background .15s ease;
+  }
+  .result-grid a:hover{ background:#ff8c57; }
+
+  button.secondary{
+    margin-top:10px; width:100%; background:none; color:var(--text-muted); border:1px solid var(--line);
+    font-family:var(--font-mono); font-size:12.5px; padding:9px; border-radius:7px; cursor:pointer;
+  }
+  button.secondary:hover{ border-color:var(--thermal); color:var(--thermal); }
+
+  #pilotMap.cmp-mode path.lead-seg{ stroke-opacity:0.28; }
+  .cmp-tip{ background:rgba(11,18,32,0.88); color:#fff; border:none; box-shadow:none; font-size:11.5px; font-weight:600; padding:2px 7px; }
+  .cmp-tip::before{ display:none; }
+  .cmp-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; border-radius:20px; font-size:12.5px; font-weight:600; border:1px solid var(--line); background:rgba(255,255,255,0.04); }
+  .cmp-chip .dot, .cmp-row .dot{ width:10px; height:10px; border-radius:50%; flex:none; border:1px solid rgba(255,255,255,0.7); }
+  .cmp-chip button{ background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px; padding:0 4px; line-height:1; }
+  .cmp-row{ display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--line); font-size:13.5px; cursor:pointer; }
+  .cmp-row.off{ opacity:0.4; cursor:not-allowed; }
+  .cmp-row input{ width:18px; height:18px; flex:none; accent-color:var(--thermal); }
+  .cmp-row .dot{ background:transparent; border-color:var(--line); }
+  #cmpSlider{ -webkit-appearance:none; appearance:none; display:block; width:100%; height:40px; margin:0; padding:0; border:none; background:transparent; touch-action:pan-y; cursor:pointer; }
+  #cmpSlider::-webkit-slider-runnable-track{ height:8px; border-radius:4px; background:rgba(179,179,179,0.30); }
+  #cmpSlider::-moz-range-track{ height:8px; border-radius:4px; background:rgba(179,179,179,0.30); }
+  #cmpSlider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:30px; height:30px; margin-top:-11px; border-radius:50%; background:var(--thermal); border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.5); }
+  #cmpSlider::-moz-range-thumb{ width:24px; height:24px; border-radius:50%; background:var(--thermal); border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.5); }
+  .toast{ margin-top:12px; padding:10px 12px; border-radius:7px; font-size:13.5px; display:none; }
+  .toast.show{ display:block; }
+  .toast.ok{ background:rgba(63,201,138,0.12); border:1px solid var(--lift); color:var(--lift); }
+  .toast.err{ background:rgba(232,93,93,0.12); border:1px solid var(--sink); color:var(--sink); }
+  .toast.info{ background:rgba(143,168,196,0.12); border:1px solid var(--line); color:var(--text-muted); }
+
+  textarea{ min-height:90px; font-family:var(--font-mono); font-size:12.5px; resize:vertical; }
+
+  .divider{ display:flex; align-items:center; gap:10px; margin:18px 0 4px; color:var(--text-muted); font-size:11.5px; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:0.05em; }
+  .divider::before, .divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .manual-block{ margin-top:6px; }
+  .manual-block summary{ cursor:pointer; color:var(--text-muted); font-size:12.5px; font-family:var(--font-mono); }
+
+  table{ width:100%; border-collapse:collapse; margin-top:6px; }
+  th{ text-align:left; font-family:var(--font-mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-muted); padding:8px 10px; border-bottom:1px solid var(--line); }
+  td{ padding:9px 10px; font-size:13.5px; border-bottom:1px solid var(--line); }
+  td.mono{ font-family:var(--font-mono); font-size:12.5px; color:var(--lift); }
+  .dl-btn{ background:none; border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; font-family:var(--font-mono); }
+  .dl-btn:hover{ border-color:var(--thermal); color:var(--thermal); }
+  .dl-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .empty{ color:var(--text-muted); font-size:13.5px; padding:22px 4px; text-align:center; }
+
+  .stat-row{ display:flex; gap:10px; margin-bottom:16px; }
+  .stat{ flex:1; background:var(--bg-deep); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .stat .n{ font-family:var(--font-display); font-size:22px; font-weight:700; }
+  .stat .l{ font-size:11.5px; color:var(--text-muted); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:0.05em; }
+
+  .disclosure{ font-size:11.5px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
+  .refresh-link{ color:var(--thermal); cursor:pointer; text-decoration:underline; font-size:12.5px; }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-box{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:10px;
+    padding:22px; max-width:420px; width:100%;
+  }
+  .modal-box p{ font-size:13.5px; line-height:1.5; margin:0 0 18px; white-space:pre-wrap; }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; }
+  .modal-actions button{
+    font-family:var(--font-body); font-size:13px; padding:9px 16px; border-radius:7px; cursor:pointer; border:1px solid var(--line);
+  }
+  .modal-actions .btn-cancel{ background:none; color:var(--text-muted); }
+  .modal-actions .btn-confirm{ background:var(--thermal); color:#fff; border-color:var(--thermal); font-weight:600; }
+  .modal-actions .btn-ok{ background:var(--thermal); color:#fff; border-color:var(--thermal); font-weight:600; }
+  .import-summary{ margin-top:12px; padding:10px 12px; background:var(--bg-deep); border:1px solid var(--line); border-radius:7px; font-size:13px; display:none; }
+  .import-summary.show{ display:block; }
+
+  .pin-box{ margin-top:12px; padding:12px; background:var(--bg-deep); border:1px solid var(--line); border-radius:7px; display:none; }
+  .pin-box.show{ display:block; }
+  .pin-box.warn{ border-color:var(--sink); }
+  .pin-box .msg{ font-size:13px; color:var(--text-muted); line-height:1.5; }
+  .pin-fields{ display:flex; gap:10px; margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img id="cxpLogo" style="display:none; max-height:225px; max-width:90%; object-fit:contain; margin:0 auto 20px; border-radius:6px;" alt="Logo CXP">
+    <h1>CXP Live</h1>
+    <p class="sub">Envio de tracklog, verificação de espaço aéreo e apuração em tempo real.</p>
+    <div class="conn-status" id="connStatus"><span class="conn-dot"></span><span id="connText">Conectando ao banco...</span></div>
+    <img id="eventLogo" style="display:none; max-height:248px; max-width:95%; object-fit:contain; margin:20px auto 0; border-radius:6px;" alt="Logo do evento">
+    <p class="sub" id="championshipNameLine" style="display:none; text-align:center; font-weight:600; color:var(--text); margin:10px auto 0; max-width:80ch;"></p>
+    <div class="result-grid" id="resultGrid"></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="piloto">Piloto</button>
+    <button class="tab" data-tab="organizador">Organizador</button>
+  </div>
+
+  <!-- PILOTO -->
+  <div class="panel active" id="panel-piloto">
+
+    <button class="primary" id="togglePinCardBtn" style="margin-bottom:14px;">Cadastrar Novo PIN</button>
+    <div id="pinCadastroWrap" style="display:none;">
+      <div class="card">
+        <h2>Cadastrar seu PIN</h2>
+        <p class="hint">Escolha um PIN de 4 números só seu. Só precisa fazer isso uma vez — depois é só usar esse PIN toda vez que enviar um voo.</p>
+        <div class="combo">
+          <input type="text" id="pinSearch" placeholder="Digite seu nome...">
+          <div class="combo-list" id="pinList"></div>
+        </div>
+        <div class="selected-pilot" id="pinSelectedBox">
+          <div class="top"><span id="pinSelName"></span><span class="pid" id="pinSelId"></span></div>
+        </div>
+
+        <div class="pin-box" id="pinAlreadyMsg">
+          <div class="msg">Esse piloto já tem um PIN cadastrado. Se esqueceu o número, peça ao organizador pra resetar.</div>
+        </div>
+
+        <div class="pin-box" id="pinCreateForm">
+          <label>Escolha um PIN de 4 números</label>
+          <div class="pin-fields">
+            <input type="password" class="pin-input" id="newPin1" inputmode="numeric" maxlength="4" placeholder="••••" enterkeyhint="next" autocomplete="off">
+            <input type="password" class="pin-input" id="newPin2" inputmode="numeric" maxlength="4" placeholder="confirme" enterkeyhint="done" autocomplete="off">
+          </div>
+          <button class="primary" id="createPinBtn">Cadastrar PIN</button>
+        </div>
+        <div class="toast" id="pinToast"></div>
+      </div>
+    </div>
+
+    <div class="card" id="dayContextCard" style="display:none;">
+      <h2>Dia da prova</h2>
+      <p class="hint" id="dayContextHint">Selecionado automaticamente pela data de hoje — troque se estiver enviando o voo de outro dia.</p>
+      <select id="dayContextSelect"></select>
+    </div>
+
+    <div class="card">
+      <h2>1. Selecione seu nome</h2>
+      <p class="hint">Apenas piloto cadastrado no evento da CBVL.</p>
+      <div class="combo">
+        <input type="text" id="pilotSearch" placeholder="Digite seu nome...">
+        <div class="combo-list" id="pilotList"></div>
+      </div>
+      <div class="selected-pilot" id="selectedPilotBox">
+        <div class="top"><span id="selectedPilotName"></span><span class="pid" id="selectedPilotId"></span></div>
+        <div class="glider" id="selectedPilotGlider"></div>
+      </div>
+      <p class="empty" id="noPilotsMsg" style="display:none; padding:12px 0 0;">Nenhuma lista de pilotos cadastrada ainda. Peça ao organizador para subir a lista na aba "Organizador".</p>
+
+      <div class="pin-box warn" id="pinMissingMsg">
+        <div class="msg">Você ainda não cadastrou um PIN. Toque em <strong>"Cadastrar / verificar meu PIN"</strong> no topo desta aba antes de enviar seu voo — o mesmo será utilizado em todos os campeonatos.</div>
+      </div>
+      <div class="pin-box" id="pinEntryBox">
+        <label>Seu PIN (4 dígitos)</label>
+        <input type="password" class="pin-input" id="pilotPinInput" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. Envie seu arquivo IGC</h2>
+      
+      <div class="dropzone" id="dropzone">
+        <div class="icon">&#9992;</div>
+        <div class="main">Toque para escolher o arquivo, ou arraste aqui</div>
+        <div class="fine">.igc</div>
+        <input type="file" id="fileInput" accept=".igc,.IGC">
+      </div>
+
+      <div class="preview" id="preview">
+        <div class="row"><span class="k">Arquivo original</span><span id="pOriginal"></span></div>
+        <div class="row"><span class="k">Data do voo (lida do IGC)</span><span id="pDate"></span></div>
+        <div class="row"><span class="k">Piloto</span><span id="pPilot"></span></div>
+        <div class="row"><span class="k">Equipamento cadastrado</span><span id="pGlider"></span></div>
+        <div class="filename" id="pFilename"></div>
+        <div class="warn" id="pWarn" style="display:none;"></div>
+      </div>
+
+      <button class="primary" id="submitBtn" disabled>Enviar voo</button>
+      <div class="toast" id="pilotToast"></div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="view-toggle active" id="toggleListBtn">Lista de envio</button>
+      <button class="view-toggle" id="toggleMapBtn">Mapa</button>
+    </div>
+
+    <div class="card" id="listView">
+      <h2>Lista de IGC`s</h2>
+      <p class="hint">Baseado no dia selecionado acima. <span class="refresh-link" id="refreshSubmissionBtn">Atualizar</span></p>
+      <div id="submissionStatusList"></div>
+    </div>
+
+    <div class="card" id="mapView" style="display:none;">
+      <h2 id="mapViewTitle">Sua prova no mapa</h2>
+      <div id="flightStatusBox" style="margin-bottom:12px;"></div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+        <button class="secondary" id="cmpToggleBtn" style="width:auto; margin-top:0; padding:8px 14px;">Comparar</button>
+        <button class="secondary" id="cmpListBtn" style="display:none; width:auto; margin-top:0; padding:8px 14px;">Escolher pilotos ▾</button>
+        <div id="cmpChips" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+        <div id="cmpRankHint" style="display:none; font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
+      </div>
+      <div id="cmpPanel" style="display:none; margin-bottom:12px; padding:12px; background:var(--bg-deep); border:1px solid var(--line); border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12.5px; color:var(--text-muted);">
+          <span id="cmpCount"></span>
+          <span class="refresh-link" id="cmpRefresh">Atualizar lista</span>
+        </div>
+        <input type="text" id="cmpSearch" placeholder="Buscar piloto..." style="margin-bottom:6px;">
+        <div id="cmpList" style="max-height:210px; overflow:auto;"></div>
+      </div>
+      <div id="pilotMap" style="height:420px; border-radius:8px; background:var(--bg-deep);"></div>
+      <div id="cmpTimeline" style="display:none; margin-top:10px;">
+        <div style="position:relative; padding-top:16px;">
+          <div id="cmpStartMark" style="display:none; position:absolute; left:0; top:0; width:0; pointer-events:none;">
+            <span id="cmpStartLbl" style="position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; font-family:var(--font-mono); font-size:11px; line-height:14px; color:var(--text-muted);"></span>
+            <span style="position:absolute; top:28px; left:-1.5px; width:3px; height:16px; border-radius:2px; background:var(--text); opacity:0.85;"></span>
+          </div>
+          <input type="range" id="cmpSlider" min="0" max="0" step="1" value="0" aria-label="Linha do tempo">
+        </div>
+        <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:12px; color:var(--text-muted); margin-top:2px;">
+          <span id="cmpClockMin"></span><span id="cmpClockMax"></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;">
+          <button class="secondary" id="cmpPlayBtn" style="width:56px; margin-top:0; padding:10px 0; font-size:16px;" aria-label="Tocar">▶</button>
+          <span id="cmpClock" style="font-family:var(--font-mono); color:var(--text); font-weight:600; font-size:17px;"></span>
+          <select id="cmpSpeed" style="width:auto; padding:10px 12px; font-size:14px;">
+            <option value="1">1×</option><option value="5">5×</option><option value="20" selected>20×</option><option value="60">60×</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CADASTRO DE PIN -->
+  <!-- ORGANIZADOR -->
+  <div class="panel" id="panel-organizador">
+
+    <div class="card" id="orgLoginBox">
+      <h2>Login do organizador</h2>
+      <p class="hint">Apenas para o apurador.</p>
+      <form id="orgLoginForm" autocomplete="on">
+        <label>E-mail</label>
+        <input type="text" id="orgEmail" name="username" autocomplete="username" placeholder="seu@email.com" style="margin-bottom:10px;">
+        <label>Senha</label>
+        <input type="password" id="orgPassword" name="password" autocomplete="current-password" placeholder="••••••••">
+        <button type="submit" class="primary" id="orgLoginBtn">Entrar</button>
+      </form>
+      <div class="toast" id="orgLoginToast"></div>
+    </div>
+
+    <div id="orgContent" style="display:none;">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <span class="refresh-link" id="orgLogoutBtn">Sair</span>
+      </div>
+
+    <div class="card">
+      <h2>Nome do campeonato</h2>
+      <p class="hint">Aparece no topo da página, pros pilotos verem em qual campeonato/etapa estão.</p>
+      <input type="text" id="championshipNameInput" placeholder="Ex: 2ª Etapa do Campeonato Paranaense 2026 - Andradas" style="margin-bottom:10px;">
+      <button class="primary" id="saveChampionshipBtn">Salvar nome do campeonato</button>
+      <div class="toast" id="championshipToast"></div>
+    </div>
+
+    <div class="card">
+      <h2>Logo fixa da CXP</h2>
+      <p class="hint">A logo do circuito, que aparece sempre no topo da página (antes de tudo), em todas as etapas. PNG ou JPEG.</p>
+      <img id="cxpLogoPreview" style="display:none; max-height:100px; max-width:100%; object-fit:contain; margin-bottom:10px; border-radius:6px; border:1px solid var(--line);" alt="Prévia da logo CXP">
+      <input type="file" id="cxpLogoInput" accept="image/png,image/jpeg" style="margin-bottom:10px;">
+      <button class="primary" id="saveCxpLogoBtn" disabled>Salvar logo da CXP</button>
+      <div class="toast" id="cxpLogoToast"></div>
+    </div>
+
+    <div class="card">
+      <h2>Logo do evento</h2>
+      <p class="hint">PNG ou JPEG. Aparece depois do status de conexão, específica dessa etapa.</p>
+      <img id="logoPreview" style="display:none; max-height:100px; max-width:100%; object-fit:contain; margin-bottom:10px; border-radius:6px; border:1px solid var(--line);" alt="Prévia da logo">
+      <input type="file" id="logoInput" accept="image/png,image/jpeg" style="margin-bottom:10px;">
+      <button class="primary" id="saveLogoBtn" disabled>Salvar logo</button>
+      <div class="toast" id="logoToast"></div>
+    </div>
+
+    <div class="card">
+      <h2>Dias do campeonato</h2>
+      <p class="hint">Cadastre todos os dias dessa etapa (treino, provas etc). O sistema mostra pro piloto qual dia bate com a data de hoje automaticamente.</p>
+      <label>Nome do dia</label>
+      <input type="text" id="newDayLabel" placeholder="Ex: Dia Treino, Prova 01..." style="margin-bottom:10px;">
+      <label>Data</label>
+      <input type="date" id="newDayDate" style="margin-bottom:10px;">
+      <button class="primary" id="addDayBtn">Adicionar dia</button>
+      <div class="toast" id="dayToast"></div>
+      <div id="dayListWrap" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Resultado oficial da prova (HTML)</h2>
+      <p class="hint">Anexe o HTML de resultado de cada dia. Depois de enviar, o botão aparece na página principal, abaixo da prévia. Enquanto não houver HTML anexado, nada aparece. Enviar de novo no mesmo dia substitui o anterior.</p>
+      <label>Dia</label>
+      <select id="resultDaySelect" style="margin-bottom:10px;"></select>
+      <label>Texto do botão</label>
+      <input type="text" id="resultLabelInput" maxlength="20" placeholder="Prova 01" style="margin-bottom:10px;">
+      <input type="file" id="resultInput" accept=".html,.htm" style="margin-bottom:10px;">
+      <button class="primary" id="saveResultBtn" disabled>Salvar resultado desse dia</button>
+      <div class="toast" id="resultToast"></div>
+      <div id="resultListWrap" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Espaço aéreo (NOTAM)</h2>
+      <p class="hint">Arquivo .txt do NOTAM, no formato OpenAir (mesmo que você já usa no verificador). Vale pra etapa inteira.</p>
+      <input type="file" id="airspaceInput" accept=".txt" style="margin-bottom:10px;">
+      <div style="display:flex; gap:8px;">
+        <button class="primary" id="saveAirspaceBtn" disabled style="flex:1;">Salvar espaço aéreo</button>
+        <button class="secondary" id="removeAirspaceBtn" style="flex:1; margin-top:14px;">Remover espaço aéreo</button>
+      </div>
+      <div class="toast" id="airspaceToast"></div>
+      <div id="airspaceStatus" class="hint" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Prova do dia (XCTSK)</h2>
+      <p class="hint">Arquivo .xctsk exportado do XCTrack, um por dia de prova. Cadastre o dia antes (seção acima).</p>
+      <label>Dia</label>
+      <select id="taskDaySelect" style="margin-bottom:10px;"></select>
+      <input type="file" id="taskInput" accept=".xctsk" style="margin-bottom:10px;">
+      <button class="primary" id="saveTaskBtn" disabled>Salvar prova desse dia</button>
+      <div class="toast" id="taskToast"></div>
+      <div id="taskStatus" class="hint" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Lista de pilotos da prova</h2>
+      <p class="hint">Suba a planilha de participantes exportada do FSCOMP (.xlsx ou .xlsm). O sistema lê automaticamente as colunas <strong>id</strong>, <strong>name</strong> e <strong>glider</strong>. Isso substitui a lista atual.</p>
+
+      <div class="dropzone" id="sheetDropzone">
+        <div class="icon">&#128202;</div>
+        <div class="main">Toque para escolher a planilha, ou arraste aqui</div>
+        <div class="fine">.xlsx ou .xlsm</div>
+        <input type="file" id="sheetInput" accept=".xlsx,.xlsm">
+      </div>
+
+      <div class="import-summary" id="importSummary"></div>
+      <button class="primary" id="saveSheetBtn" disabled>Salvar lista de pilotos</button>
+
+      <details class="manual-block">
+        <summary>ou colar lista manualmente (sem planilha)</summary>
+        <div style="margin-top:10px;">
+          <textarea id="pilotCsv" placeholder="Arthur Grandini Rodella, 65653&#10;Fulano da Silva, 65654"></textarea>
+          <button class="secondary" id="savePilotsBtn">Salvar lista colada</button>
+        </div>
+      </details>
+
+      <div class="toast" id="orgToast"></div>
+      <p class="disclosure">A lista e os voos ficam salvos no seu banco de dados (Supabase) — persistem entre sessões e dispositivos. Trocar a lista de pilotos não apaga os PINs já cadastrados.</p>
+    </div>
+
+    <div class="card">
+      <h2>Resetar PIN de um piloto</h2>
+      <p class="hint">Se um piloto esqueceu o PIN, selecione o nome dele e resete — na próxima tentativa de envio, ele vai poder cadastrar um PIN novo tocando em "Cadastrar / verificar meu PIN" na aba Piloto.</p>
+      <div class="combo">
+        <input type="text" id="resetPinSearch" placeholder="Digite o nome do piloto...">
+        <div class="combo-list" id="resetPinList"></div>
+      </div>
+      <div class="selected-pilot" id="resetPinSelectedBox">
+        <div class="top"><span id="resetPinSelName"></span><span class="pid" id="resetPinSelId"></span></div>
+      </div>
+      <button class="secondary" id="resetPinBtn" disabled>Resetar PIN desse piloto</button>
+      <div class="toast" id="resetPinToast"></div>
+    </div>
+
+    <div class="card">
+      <h2>Marcar DNF / ABS / Enviado</h2>
+      <p class="hint">DNF (não decolou) e ABS (não foi à etapa) evitam que o piloto fique "Pendente". "Enviado" é pra quando você recebe o IGC direto por cabo (sem internet) e joga na pasta do FSCOMP na mão — assim a lista mostra certo mesmo sem passar pelo app.</p>
+      <div class="combo">
+        <input type="text" id="dnfPilotSearch" placeholder="Digite o nome do piloto...">
+        <div class="combo-list" id="dnfPilotList"></div>
+      </div>
+      <div class="selected-pilot" id="dnfSelectedBox">
+        <div class="top"><span id="dnfSelName"></span><span class="pid" id="dnfSelId"></span></div>
+      </div>
+      <label style="margin-top:10px;">Dia</label>
+      <select id="dnfDaySelect" style="margin-bottom:10px;"></select>
+      <div style="display:flex; gap:8px;">
+        <button class="secondary" id="markDnfBtn" style="flex:1;" disabled>Marcar DNF</button>
+        <button class="secondary" id="markAbsBtn" style="flex:1;" disabled>Marcar ABS</button>
+      </div>
+      <button class="secondary" id="markEnviadoBtn" style="margin-top:8px;" disabled>Marcar Enviado (recebido por cabo)</button>
+      <button class="secondary" id="clearDnfBtn" style="margin-top:8px;" disabled>Remover marcação</button>
+      <div class="toast" id="dnfToast"></div>
+      <div id="dnfListWrap" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Adicionar voos manualmente</h2>
+      <p class="hint" style="margin:0 0 10px; color:var(--text-muted); font-size:13px;">Envie IGCs já renomeados (<span class="mono">AAAA-MM-DD-NOME.ID.igc</span>), um por um ou num ZIP. O piloto é reconhecido pelo ID no nome do arquivo; se não for reconhecido, escolha na lista.</p>
+      <input type="file" id="manualFiles" accept=".igc,.zip" multiple style="display:none;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+        <button class="dl-btn" id="manualPickBtn">Escolher arquivos (.igc ou .zip)</button>
+        <button class="dl-btn" id="manualSendBtn" disabled>Enviar voos</button>
+        <button class="dl-btn" id="manualClearBtn" disabled>Limpar lista</button>
+      </div>
+      <table id="manualTable" style="display:none;">
+        <thead><tr><th>Arquivo</th><th>Piloto</th><th>Data</th><th>Situação</th><th></th></tr></thead>
+        <tbody id="manualBody"></tbody>
+      </table>
+      <div class="toast" id="manualToast"></div>
+    </div>
+
+    <div class="card">
+      <h2>Voos recebidos</h2>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="statCount">0</div><div class="l">Voos recebidos</div></div>
+        <div class="stat"><div class="n" id="statPilots">0</div><div class="l">Pilotos cadastrados</div></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label>Filtrar por dia</label>
+        <select id="flightsDayFilter"><option value="">Todos os dias</option></select>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+        <span class="refresh-link" id="refreshBtn">Atualizar lista</span>
+        <div style="display:flex; gap:8px;">
+          <button class="dl-btn" id="downloadAllBtn" disabled>Baixar todos em ZIP</button>
+          <button class="dl-btn" id="clearFlightsBtn" disabled style="border-color:var(--sink); color:var(--sink);">Apagar todos os voos</button>
+        </div>
+      </div>
+      <table id="flightsTable" style="display:none;">
+        <thead><tr><th>Piloto</th><th>ID</th><th>Data</th><th>Arquivo final</th><th>Espaço aéreo</th><th></th></tr></thead>
+        <tbody id="flightsBody"></tbody>
+      </table>
+      <div class="empty" id="flightsEmpty">Nenhum voo recebido ainda.</div>
+    </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const SUPABASE_URL = 'COLE_AQUI_A_URL_DO_PROJETO';
+  const SUPABASE_ANON_KEY = 'COLE_AQUI_A_CHAVE_ANON';
+  if(SUPABASE_URL.indexOf('https://ruyohfjxtznvqyznseva.supabase.co') !== -1 || SUPABASE_ANON_KEY.indexOf('sb_publishable_s1n1hmRcNSUbHenGsOcdWg_p9HhseMC') !== -1){
+    document.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="background:#b91c1c;color:#fff;padding:14px;font:600 14px sans-serif;text-align:center;">Falta configurar: coloque a URL e a chave anon do projeto novo no começo do script (SUPABASE_URL e SUPABASE_ANON_KEY).</div>'); });
+  }
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true }
+  });
+
+  let pilots = [];
+  let selectedPilot = null;
+  let selectedPinPilot = null;
+  let parsedFlight = null;
+  let importedPilots = null;
+  let currentFlights = [];
+  let eventDays = [];
+  let selectedCxpLogoFile = null;
+
+  function setConnStatus(ok, text){
+    const el = document.getElementById('connStatus');
+    el.className = 'conn-status ' + (ok ? 'ok' : 'err');
+    document.getElementById('connText').textContent = text;
+  }
+
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+      if(t.dataset.tab==='organizador'){ refreshOrgAuthUI(); }
+      if(t.dataset.tab==='piloto'){ refreshPinStatusForSelectedPilot(); }
+    });
+  });
+
+  document.querySelectorAll('.pin-input').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      el.style.color = el.value.length === 4 ? '#2ECC71' : '';
+    });
+  });
+
+  // Cadastro de PIN: controla pra onde o foco vai com Enter / "Próximo" / "OK" do teclado,
+  // senão o navegador pula pro seletor "Dia da prova" (logo abaixo) e abre a lista de datas.
+  document.getElementById('newPin1').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      document.getElementById('newPin2').focus();
+    }
+  });
+  document.getElementById('newPin2').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      e.target.blur();
+      document.getElementById('createPinBtn').focus({ preventScroll:true });
+    }
+  });
+
+  document.getElementById('togglePinCardBtn').addEventListener('click', ()=>{
+    const wrap = document.getElementById('pinCadastroWrap');
+    const abrindo = wrap.style.display === 'none';
+    wrap.style.display = abrindo ? 'block' : 'none';
+    document.getElementById('togglePinCardBtn').textContent = abrindo ? 'Fechar cadastro de PIN' : 'Cadastrar Novo PIN';
+    if(abrindo && selectedPilot){
+      document.getElementById('pinSearch').value = selectedPilot.name;
+      selecionarPilotoParaPin(selectedPilot);
+    }
+  });
+
+  async function loadPilots(){
+    try{
+      const { data, error } = await sb.from('pilots').select('*').order('name');
+      if(error) throw error;
+      pilots = (data || []).map(r => ({ name: r.name, id: r.id, glider: r.glider || '' }));
+      document.getElementById('noPilotsMsg').style.display = pilots.length ? 'none' : 'block';
+      document.getElementById('statPilots').textContent = pilots.length;
+      setConnStatus(true, 'Conectado ao banco de dados');
+      loadSubmissionStatus();
+    }catch(e){
+      setConnStatus(false, 'Falha ao conectar ao banco — verifique a conexão');
+      pilots = [];
+    }
+  }
+
+  async function loadEventSettings(){
+    try{
+      const { data, error } = await sb.from('event_settings').select('*').eq('id',1).maybeSingle();
+      if(error) throw error;
+      const name = data ? data.championship_name : null;
+      const el = document.getElementById('championshipNameLine');
+      if(name){
+        el.textContent = name;
+        el.style.display = 'block';
+      } else {
+        el.style.display = 'none';
+      }
+      const input = document.getElementById('championshipNameInput');
+      if(input) input.value = name || '';
+
+      const airspaceText = data ? data.airspace_text : null;
+      const airspaceStatus = document.getElementById('airspaceStatus');
+      if(airspaceText){
+        const areaCount = (airspaceText.match(/^AC\s+/gim) || []).length;
+        if(airspaceStatus) airspaceStatus.textContent = `Carregado: ${areaCount} área(s) de espaço aéreo.`;
+      } else {
+        if(airspaceStatus) airspaceStatus.textContent = 'Nenhum espaço aéreo cadastrado ainda.';
+      }
+
+      const eventLogoUrl = data ? data.logo_url : null;
+      const eventLogoEl = document.getElementById('eventLogo');
+      const eventPreviewEl = document.getElementById('logoPreview');
+      if(eventLogoUrl){
+        eventLogoEl.src = eventLogoUrl;
+        eventLogoEl.style.display = 'block';
+        eventPreviewEl.src = eventLogoUrl;
+        eventPreviewEl.style.display = 'block';
+      } else {
+        eventLogoEl.style.display = 'none';
+        eventPreviewEl.style.display = 'none';
+      }
+
+      const cxpLogoUrl = data ? data.cxp_logo_url : null;
+      const cxpLogoEl = document.getElementById('cxpLogo');
+      const cxpPreviewEl = document.getElementById('cxpLogoPreview');
+      if(cxpLogoUrl){
+        cxpLogoEl.src = cxpLogoUrl;
+        cxpLogoEl.style.display = 'block';
+        cxpPreviewEl.src = cxpLogoUrl;
+        cxpPreviewEl.style.display = 'block';
+      } else {
+        cxpLogoEl.style.display = 'none';
+        cxpPreviewEl.style.display = 'none';
+      }
+    }catch(e){ /* silencioso: sem nome definido ainda */ }
+  }
+
+  document.getElementById('saveChampionshipBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('championshipNameInput').value.trim();
+    const toast = document.getElementById('championshipToast');
+    const btn = document.getElementById('saveChampionshipBtn');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try{
+      const { error } = await sb.from('event_settings').upsert({ id:1, championship_name: name });
+      if(error) throw error;
+      await loadEventSettings();
+      toast.textContent = 'Nome do campeonato atualizado.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar nome do campeonato';
+  });
+
+  document.getElementById('cxpLogoInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    selectedCxpLogoFile = file;
+    document.getElementById('saveCxpLogoBtn').disabled = false;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const previewEl = document.getElementById('cxpLogoPreview');
+      previewEl.src = reader.result;
+      previewEl.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('saveCxpLogoBtn').addEventListener('click', async ()=>{
+    if(!selectedCxpLogoFile) return;
+    const toast = document.getElementById('cxpLogoToast');
+    const btn = document.getElementById('saveCxpLogoBtn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try{
+      const { error: upErr } = await sb.storage.from('event-logo').upload('cxp-logo', selectedCxpLogoFile, {
+        upsert: true,
+        contentType: selectedCxpLogoFile.type
+      });
+      if(upErr) throw upErr;
+      const { data: pub } = sb.storage.from('event-logo').getPublicUrl('cxp-logo');
+      const urlWithCacheBust = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: dbErr } = await sb.from('event_settings').upsert({ id:1, cxp_logo_url: urlWithCacheBust });
+      if(dbErr) throw dbErr;
+      await loadEventSettings();
+      toast.textContent = 'Logo da CXP salva.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar logo: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar logo da CXP';
+  });
+
+  let selectedLogoFile = null;
+  document.getElementById('logoInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    selectedLogoFile = file;
+    document.getElementById('saveLogoBtn').disabled = false;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const previewEl = document.getElementById('logoPreview');
+      previewEl.src = reader.result;
+      previewEl.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('saveLogoBtn').addEventListener('click', async ()=>{
+    if(!selectedLogoFile) return;
+    const toast = document.getElementById('logoToast');
+    const btn = document.getElementById('saveLogoBtn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try{
+      const { error: upErr } = await sb.storage.from('event-logo').upload('current-logo', selectedLogoFile, {
+        upsert: true,
+        contentType: selectedLogoFile.type
+      });
+      if(upErr) throw upErr;
+      const { data: pub } = sb.storage.from('event-logo').getPublicUrl('current-logo');
+      const urlWithCacheBust = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: dbErr } = await sb.from('event_settings').upsert({ id:1, logo_url: urlWithCacheBust });
+      if(dbErr) throw dbErr;
+      await loadEventSettings();
+      toast.textContent = 'Logo salva.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar logo: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar logo';
+  });
+
+  // ---------- Organizer: airspace (NOTAM) upload ----------
+  let selectedAirspaceContent = null;
+  document.getElementById('airspaceInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      selectedAirspaceContent = reader.result;
+      const status = document.getElementById('airspaceStatus');
+      const names = [...selectedAirspaceContent.matchAll(/^AN\s+(.+)$/gim)].map(m => m[1].trim());
+      if(names.length){
+        status.textContent = `Pronto pra salvar: ${names.length} área(s) reconhecida(s) — ${names.join(', ')}`;
+        document.getElementById('saveAirspaceBtn').disabled = false;
+      } else {
+        status.textContent = 'Não encontrei nenhuma área (linha "AN") nesse arquivo. Confira o formato.';
+        document.getElementById('saveAirspaceBtn').disabled = true;
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('saveAirspaceBtn').addEventListener('click', async ()=>{
+    if(!selectedAirspaceContent) return;
+    const toast = document.getElementById('airspaceToast');
+    const btn = document.getElementById('saveAirspaceBtn');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try{
+      const { error } = await sb.from('event_settings').upsert({ id:1, airspace_text: selectedAirspaceContent });
+      if(error) throw error;
+      await loadEventSettings();
+      toast.textContent = 'Espaço aéreo salvo.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar espaço aéreo';
+  });
+
+  document.getElementById('removeAirspaceBtn').addEventListener('click', async ()=>{
+    const toast = document.getElementById('airspaceToast');
+    const btn = document.getElementById('removeAirspaceBtn');
+    const sure = await appConfirm('Remover o espaço aéreo cadastrado? Nenhuma prova vai ser checada contra restrição de espaço aéreo até você subir um novo arquivo.');
+    if(!sure) return;
+    btn.disabled = true;
+    btn.textContent = 'Removendo...';
+    try{
+      const { error } = await sb.from('event_settings').upsert({ id:1, airspace_text: null });
+      if(error) throw error;
+      selectedAirspaceContent = null;
+      document.getElementById('airspaceInput').value = '';
+      document.getElementById('saveAirspaceBtn').disabled = true;
+      await loadEventSettings();
+      toast.textContent = 'Espaço aéreo removido.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao remover: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Remover espaço aéreo';
+  });
+
+  // ---------- Organizer: task (XCTSK) upload per day ----------
+  function populateTaskDaySelect(){
+    const sel = document.getElementById('taskDaySelect');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = eventDays.map(d => `<option value="${d.event_date}">${escapeHtml(d.label)} — ${formatDateBR(d.event_date)}${d.task_json ? ' ✓' : ''}</option>`).join('');
+    if([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  let selectedTaskContent = null;
+  document.getElementById('taskInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const status = document.getElementById('taskStatus');
+      try{
+        const data = JSON.parse(reader.result);
+        const tps = data.turnpoints || [];
+        if(!tps.length) throw new Error('Nenhum pilão encontrado no arquivo.');
+        selectedTaskContent = reader.result;
+        status.textContent = `Pronto pra salvar: ${tps.length} pilão(ões) — ${tps.map(t => (t.waypoint && t.waypoint.name) || '?').join(', ')}`;
+        document.getElementById('saveTaskBtn').disabled = false;
+      }catch(err){
+        status.textContent = 'Arquivo .xctsk inválido: ' + err.message;
+        document.getElementById('saveTaskBtn').disabled = true;
+        selectedTaskContent = null;
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('saveTaskBtn').addEventListener('click', async ()=>{
+    const date = document.getElementById('taskDaySelect').value;
+    const toast = document.getElementById('taskToast');
+    if(!selectedTaskContent || !date) return;
+    const btn = document.getElementById('saveTaskBtn');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try{
+      const { error } = await sb.from('event_days').update({ task_json: selectedTaskContent }).eq('event_date', date);
+      if(error) throw error;
+      await loadEventDays();
+      toast.textContent = 'Prova salva pra esse dia.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Salvar prova desse dia';
+  });
+
+  // ===== Resultados oficiais por prova =====
+  let dayResults = [];  // [{event_date, button_label}]  (sem o HTML, que e' pesado)
+
+  async function loadDayResults(){
+    try{
+      const { data, error } = await sb.from('day_results').select('event_date,button_label').order('event_date');
+      if(error) throw error;
+      dayResults = data || [];
+    }catch(e){
+      dayResults = [];
+    }
+    renderResultGrid();
+    renderResultList();
+  }
+
+  function renderResultGrid(){
+    const grid = document.getElementById('resultGrid');
+    if(!dayResults.length){
+      grid.classList.remove('show');
+      grid.innerHTML = '';
+      return;
+    }
+    grid.innerHTML = dayResults.map(r =>
+      `<a href="resultado.html?dia=${encodeURIComponent(r.event_date)}">${escapeHtml(r.button_label)}</a>`
+    ).join('');
+    grid.classList.add('show');
+  }
+
+  function defaultResultLabel(date){
+    const idx = eventDays.findIndex(d => d.event_date === date);
+    return 'Prova ' + String((idx >= 0 ? idx : dayResults.length) + 1).padStart(2, '0');
+  }
+
+  function populateResultDaySelect(){
+    const sel = document.getElementById('resultDaySelect');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = eventDays.map(d => {
+      const has = dayResults.some(r => r.event_date === d.event_date);
+      return `<option value="${d.event_date}">${escapeHtml(d.label)} — ${formatDateBR(d.event_date)}${has ? ' ✓' : ''}</option>`;
+    }).join('');
+    if([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    fillResultLabel();
+  }
+
+  function fillResultLabel(){
+    const sel = document.getElementById('resultDaySelect');
+    const input = document.getElementById('resultLabelInput');
+    if(!sel || !sel.value){ input.value = ''; return; }
+    const existing = dayResults.find(r => r.event_date === sel.value);
+    input.value = existing ? existing.button_label : defaultResultLabel(sel.value);
+  }
+
+  function renderResultList(){
+    populateResultDaySelect();
+    const wrap = document.getElementById('resultListWrap');
+    if(!dayResults.length){
+      wrap.innerHTML = '<div class="empty" style="padding:10px 0;">Nenhum resultado anexado ainda.</div>';
+      return;
+    }
+    wrap.innerHTML = dayResults.map(r => `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;">
+        <span>${escapeHtml(r.button_label)} <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:12px;">— ${formatDateBR(r.event_date)}</span></span>
+        <button class="dl-btn" data-result-date="${r.event_date}">Remover</button>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('[data-result-date]').forEach(btn=>{
+      btn.addEventListener('click', ()=> deleteDayResult(btn.dataset.resultDate));
+    });
+  }
+
+  async function deleteDayResult(date){
+    const toast = document.getElementById('resultToast');
+    if(!(await appConfirm('Remover o resultado desse dia? O botão some da página principal.'))) return;
+    try{
+      const { error } = await sb.from('day_results').delete().eq('event_date', date);
+      if(error) throw error;
+      await loadDayResults();
+      toast.textContent = 'Resultado removido.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao remover: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+  }
+
+  let selectedResultHtml = null;
+  document.getElementById('resultDaySelect').addEventListener('change', fillResultLabel);
+  document.getElementById('resultInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    const toast = document.getElementById('resultToast');
+    const btn = document.getElementById('saveResultBtn');
+    selectedResultHtml = null;
+    btn.disabled = true;
+    if(!file) return;
+    if(file.size > 8 * 1024 * 1024){
+      toast.textContent = 'Arquivo grande demais (máximo 8 MB).';
+      toast.className = 'toast err show';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const txt = String(reader.result || '');
+      if(!/<html|<body|<table|<div/i.test(txt)){
+        toast.textContent = 'Esse arquivo não parece um HTML de resultado.';
+        toast.className = 'toast err show';
+        return;
+      }
+      selectedResultHtml = txt;
+      toast.textContent = `Pronto pra salvar: ${file.name} (${Math.round(file.size/1024)} KB).`;
+      toast.className = 'toast info show';
+      btn.disabled = false;
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('saveResultBtn').addEventListener('click', async ()=>{
+    const date = document.getElementById('resultDaySelect').value;
+    const label = document.getElementById('resultLabelInput').value.trim() || defaultResultLabel(date);
+    const toast = document.getElementById('resultToast');
+    if(!selectedResultHtml || !date) return;
+    const btn = document.getElementById('saveResultBtn');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try{
+      const { error } = await sb.from('day_results').upsert(
+        { event_date: date, button_label: label, html: selectedResultHtml, updated_at: new Date().toISOString() },
+        { onConflict: 'event_date' }
+      );
+      if(error) throw error;
+      selectedResultHtml = null;
+      document.getElementById('resultInput').value = '';
+      await loadDayResults();
+      toast.textContent = 'Resultado salvo. O botão já aparece na página principal.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+      btn.disabled = false;
+    }
+    btn.textContent = 'Salvar resultado desse dia';
+  });
+
+  async function loadSubmissionStatus(){
+    const wrap = document.getElementById('submissionStatusList');
+    const select = document.getElementById('dayContextSelect');
+    const date = select && select.value ? select.value : null;
+    if(!date || !pilots.length){
+      wrap.innerHTML = '<div class="empty" style="padding:10px 0;">Selecione um dia da prova e aguarde a lista de pilotos carregar.</div>';
+      return;
+    }
+    try{
+      const [submittedRes, statusRes] = await Promise.all([
+        sb.rpc('pilots_submitted_for_date', { p_date: date }),
+        sb.rpc('pilot_day_statuses', { p_date: date })
+      ]);
+      if(submittedRes.error) throw submittedRes.error;
+      if(statusRes.error) throw statusRes.error;
+      const submittedSet = new Set((submittedRes.data || []).map(v => String(v)));
+      const statusMap = {};
+      (statusRes.data || []).forEach(r => { statusMap[String(r.pilot_id)] = r.status; });
+      wrap.innerHTML = '';
+      pilots.forEach(p=>{
+        const pid = String(p.id);
+        let label, color, clickable = false;
+        if(submittedSet.has(pid)){ label = '✓ Enviado'; color = 'var(--lift)'; clickable = true; }
+        else if(statusMap[pid]){
+          const raw = statusMap[pid];
+          const display = raw === 'ENVIADO' ? 'Enviado' : raw;
+          label = `✓ ${display}`; color = 'var(--lift)';
+        }
+        else { label = 'Pendente'; color = 'var(--sink)'; }
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;' + (clickable ? ' cursor:pointer;' : '');
+        row.innerHTML = `<span${clickable ? ' style="color:var(--thermal); text-decoration:underline;"' : ''}>${escapeHtml(p.name)}</span>
+          <span style="color:${color}; font-family:var(--font-mono); font-size:12px; font-weight:600; white-space:nowrap; flex-shrink:0; margin-left:10px;">${label}</span>`;
+        if(clickable){
+          row.addEventListener('click', ()=> viewPilotFlight(p.id, p.name, date));
+        }
+        wrap.appendChild(row);
+      });
+    }catch(e){
+      wrap.innerHTML = '<div class="empty" style="padding:10px 0;">Não consegui carregar o status de envio.</div>';
+    }
+  }
+
+  document.getElementById('refreshSubmissionBtn').addEventListener('click', loadSubmissionStatus);
+  document.getElementById('dayContextSelect').addEventListener('change', loadSubmissionStatus);
+  document.getElementById('dayContextSelect').addEventListener('change', ()=>{
+    if(cmpActive){ cmpOnDayChange(); return; }
+    if(!mapFlightShown && document.getElementById('mapView').style.display === 'block') showDayTaskOnMap();
+  });
+
+  function formatDateBR(iso){
+    if(!iso) return '';
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function getTodayISO(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  async function loadEventDays(){
+    try{
+      const { data, error } = await sb.from('event_days').select('*').order('event_date');
+      if(error) throw error;
+      eventDays = data || [];
+      populateDaySelect();
+      renderDayList();
+      populateFlightsDayFilter();
+      populateDnfDaySelect();
+      populateTaskDaySelect();
+      populateResultDaySelect();
+      if(!mapFlightShown && document.getElementById('mapView').style.display === 'block') showDayTaskOnMap();
+    }catch(e){
+      eventDays = [];
+    }
+  }
+
+  function populateDaySelect(){
+    const card = document.getElementById('dayContextCard');
+    const select = document.getElementById('dayContextSelect');
+    if(!eventDays.length){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = 'block';
+    const today = getTodayISO();
+    select.innerHTML = eventDays.map(d =>
+      `<option value="${d.event_date}">${escapeHtml(d.label)} — ${formatDateBR(d.event_date)}</option>`
+    ).join('');
+    const todayMatch = eventDays.find(d => d.event_date === today);
+    if(todayMatch){
+      select.value = todayMatch.event_date;
+      document.getElementById('dayContextHint').textContent = 'Selecionado automaticamente pela data de hoje — troque se estiver enviando o voo de outro dia.';
+    } else {
+      document.getElementById('dayContextHint').textContent = `Hoje (${formatDateBR(today)}) não bate com nenhum dia cadastrado — selecione manualmente o dia certo.`;
+    }
+    loadSubmissionStatus();
+  }
+
+  function renderDayList(){
+    const wrap = document.getElementById('dayListWrap');
+    if(!eventDays.length){
+      wrap.innerHTML = '<div class="empty" style="padding:10px 0;">Nenhum dia cadastrado ainda.</div>';
+      return;
+    }
+    wrap.innerHTML = eventDays.map(d => `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;">
+        <span>${escapeHtml(d.label)} <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:12px;">— ${formatDateBR(d.event_date)}</span></span>
+        <button class="dl-btn" data-day-id="${d.id}">Remover</button>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('[data-day-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=> deleteDay(btn.dataset.dayId));
+    });
+  }
+
+  async function deleteDay(id){
+    const toast = document.getElementById('dayToast');
+    try{
+      const { error } = await sb.from('event_days').delete().eq('id', id);
+      if(error) throw error;
+      await loadEventDays();
+    }catch(e){
+      toast.textContent = 'Erro ao remover: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+  }
+
+  document.getElementById('addDayBtn').addEventListener('click', async ()=>{
+    const label = document.getElementById('newDayLabel').value.trim();
+    const date = document.getElementById('newDayDate').value;
+    const toast = document.getElementById('dayToast');
+    if(!label || !date){
+      toast.textContent = 'Preencha o nome do dia e a data.';
+      toast.className = 'toast err show';
+      return;
+    }
+    const btn = document.getElementById('addDayBtn');
+    btn.disabled = true;
+    btn.textContent = 'Adicionando...';
+    try{
+      const { error } = await sb.from('event_days').insert({ label, event_date: date });
+      if(error) throw error;
+      document.getElementById('newDayLabel').value = '';
+      document.getElementById('newDayDate').value = '';
+      await loadEventDays();
+      toast.textContent = 'Dia adicionado.';
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao adicionar: ' + (e.code === '23505' ? 'já existe um dia cadastrado com essa data.' : (e.message || 'erro desconhecido'));
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Adicionar dia';
+  });
+
+  // ================= Verificação de voo (agora roda na Edge Function, não aqui) =================
+  const CHECK_FLIGHT_URL = SUPABASE_URL + '/functions/v1/check-flight';
+
+  async function checkFlight(igcContent, date, opts){
+    const res = await fetch(CHECK_FLIGHT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ date, igcContent, withProgress: !!(opts && opts.withProgress) })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || 'Falha ao verificar o voo no servidor');
+    return data;
+  }
+
+  // ---------- Mapa da aba Piloto ----------
+  let pilotLeafletMap = null, pilotMapLayers = null;
+  let mapReqId = 0;            // descarta respostas antigas quando o usuário muda de piloto/dia rápido
+  let mapViewedPilot = null;   // {id, date} do piloto cujo voo está no mapa (para pré-selecionar no Comparar)
+  let mapFlightShown = false;  // true = o mapa está mostrando o voo de um piloto (e não só a prova)
+
+  function ensurePilotMap(){
+    if(pilotLeafletMap) return;
+    pilotLeafletMap = L.map('pilotMap').setView([-15,-50], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(pilotLeafletMap);
+    pilotMapLayers = {
+      task: L.layerGroup().addTo(pilotLeafletMap),
+      airspace: L.layerGroup().addTo(pilotLeafletMap),
+      igc: L.layerGroup().addTo(pilotLeafletMap),
+      cmpOthers: L.layerGroup().addTo(pilotLeafletMap),
+      cmp: L.layerGroup().addTo(pilotLeafletMap)
+    };
+  }
+
+  function drawAirspacesOnMap(airspacesList){
+    pilotMapLayers.airspace.clearLayers();
+    let bounds = L.latLngBounds(), any = false;
+    (airspacesList || []).forEach(a=>{
+      if(a.type === 'ring'){
+        L.polygon([a.outer, a.inner], { color:'red', fillOpacity:0.18, weight:1.5 })
+          .addTo(pilotMapLayers.airspace)
+          .bindPopup(`<b>${escapeHtml(a.name)}</b><br>${a.altMin.toFixed(0)}–${a.altMax.toFixed(0)}m AMSL`);
+        L.polygon(a.inner, { color:'orange', fillOpacity:0, weight:1.5, dashArray:'4,4' }).addTo(pilotMapLayers.airspace);
+        bounds.extend(L.polygon(a.outer).getBounds());
+      } else {
+        L.polygon(a.polygon, { color:'red', fillOpacity:0, weight:1.5 })
+          .addTo(pilotMapLayers.airspace)
+          .bindPopup(`<b>${escapeHtml(a.name)}</b><br>${a.altMin.toFixed(0)}–${a.altMax.toFixed(0)}m AMSL`);
+        bounds.extend(L.polygon(a.polygon).getBounds());
+      }
+      any = true;
+    });
+    return any ? bounds : null;
+  }
+
+  // Cor do peso da liderança: 0 = verde (conta pouco) → amarelo → 1 = vermelho (conta muito)
+  function leadColor(w){ return `hsl(${Math.round(120 * (1 - Math.max(0, Math.min(1, w))))},85%,45%)`; }
+
+  function drawLeadRoute(leadRoute){
+    const pts = leadRoute.points;
+    // contorno escuro por baixo pra cor aparecer bem sobre qualquer mapa
+    L.polyline(pts.map(p => [p[0], p[1]]), { color:'#0b1220', weight:9, opacity:0.45, className:'lead-seg' }).addTo(pilotMapLayers.task);
+    for(let i = 1; i < pts.length; i++){
+      const a = pts[i-1], b = pts[i];
+      const inside = a[2] >= 0 && b[2] >= 0;
+      if(!inside){
+        L.polyline([[a[0],a[1]],[b[0],b[1]]], { color:'#9fb3c8', weight:4, opacity:0.9, dashArray:'6,6', className:'lead-seg' }).addTo(pilotMapLayers.task);
+        continue;
+      }
+      const w = (a[2] + b[2]) / 2;
+      L.polyline([[a[0],a[1]],[b[0],b[1]]], { color:leadColor(w), weight:6, opacity:1, lineCap:'butt', className:'lead-seg' })
+        .addTo(pilotMapLayers.task)
+        .bindTooltip(`Peso na liderança: ${Math.round(w * 100)}% do máximo`, { sticky:true });
+    }
+  }
+
+  function drawTaskOnMap(turnpoints, optimizedRoute, goalLine, leadRoute){
+    pilotMapLayers.task.clearLayers();
+    if(!turnpoints || !turnpoints.length) return null;
+    let bounds = L.latLngBounds();
+    turnpoints.forEach((p, idx)=>{
+      // Goal em linha (XCTSK "goal":{"type":"LINE"}): linha + semicírculo atrás, como no FSCOMP
+      if(goalLine && idx === turnpoints.length - 1){
+        L.polygon(goalLine.semicircle, { color:'#00B2FF', weight:2, fillOpacity:0.15 }).addTo(pilotMapLayers.task);
+        const line = L.polyline(goalLine.line, { color:'#00B2FF', weight:6 })
+          .addTo(pilotMapLayers.task)
+          .bindPopup(`<b>${escapeHtml(p.name)}</b><br>Goal (linha de ${p.radius * 2}m)`);
+        bounds.extend(L.polygon(goalLine.semicircle).getBounds());
+        return;
+      }
+      let color = '#176f15';
+      if(p.type === 'SSS') color = '#e8c400';
+      else if(p.type === 'ESS') color = 'red';
+      else if(p.type === 'GOAL') color = 'var(--lift)';
+      const circle = L.circle([p.lat, p.lon], { radius:p.radius, color, weight:3, fillOpacity:0.15 })
+        .addTo(pilotMapLayers.task)
+        .bindPopup(`<b>${escapeHtml(p.name)}</b><br>Raio: ${p.radius}m`);
+      bounds.extend(circle.getBounds());
+    });
+    if(leadRoute && leadRoute.points && leadRoute.points.length > 1){
+      drawLeadRoute(leadRoute);
+    } else if(optimizedRoute && optimizedRoute.length > 1){
+      L.polyline(optimizedRoute, { color:'#00bcd4', weight:3 }).addTo(pilotMapLayers.task);
+    }
+    return bounds;
+  }
+
+  function drawTrackOnMap(track){
+    pilotMapLayers.igc.clearLayers();
+    if(!track || !track.length) return null;
+    const line = L.polyline(track.map(p => [p.lat, p.lon]), { color:'#3355ff', weight:3 }).addTo(pilotMapLayers.igc);
+    let seg = [];
+    track.forEach(p=>{
+      if(p.violation) seg.push([p.lat, p.lon]);
+      else if(seg.length > 1){ L.polyline(seg, { color:'red', weight:5 }).addTo(pilotMapLayers.igc); seg = []; }
+      else seg = [];
+    });
+    if(seg.length > 1) L.polyline(seg, { color:'red', weight:5 }).addTo(pilotMapLayers.igc);
+    return line.getBounds();
+  }
+
+  async function renderFlightOnMap(igcContent, dayDate, pilotNameForTitle, pilotId){
+    ensurePilotMap();
+    if(cmpActive) cmpResetUI();
+    const reqId = ++mapReqId;
+    const statusBox = document.getElementById('flightStatusBox');
+    document.getElementById('mapViewTitle').textContent = pilotNameForTitle ? `Carregando prova de ${pilotNameForTitle}...` : 'Verificando seu voo...';
+    statusBox.innerHTML = '<div class="hint">Verificando voo no servidor...</div>';
+    try{
+      const result = await checkFlight(igcContent, dayDate);
+      if(reqId !== mapReqId) return;
+      mapFlightShown = true;
+      mapViewedPilot = (pilotId !== undefined && pilotId !== null) ? { id: String(pilotId), date: dayDate } : null;
+      document.getElementById('mapViewTitle').textContent = pilotNameForTitle ? `Prova de ${pilotNameForTitle}` : 'Sua prova no mapa';
+
+      const airBounds = drawAirspacesOnMap(result.airspaces);
+      const taskBounds = drawTaskOnMap(result.turnpoints, result.optimizedRoute, result.goalLine, result.leadRoute);
+      const trackBounds = drawTrackOnMap(result.track);
+
+      setTimeout(()=>{
+        if(!pilotLeafletMap) return;
+        pilotLeafletMap.invalidateSize();
+        if(trackBounds){
+          pilotLeafletMap.fitBounds(trackBounds, { padding:[30,30] });
+        } else {
+          const fallbackBounds = L.latLngBounds();
+          let any = false;
+          [airBounds, taskBounds].forEach(b=>{ if(b){ fallbackBounds.extend(b); any = true; } });
+          if(any) pilotLeafletMap.fitBounds(fallbackBounds, { padding:[20,20] });
+        }
+      }, 150);
+
+      const badge = (ok, label) => `<span style="display:inline-block; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; margin-right:6px; margin-bottom:6px; background:${ok?'rgba(0,178,255,0.15)':'rgba(179,179,179,0.12)'}; color:${ok?'var(--lift)':'var(--text-muted)'}; border:1px solid ${ok?'var(--lift)':'var(--line)'};">${ok?'✓ ':''}${label}</span>`;
+      let html = '';
+      if(result.status){
+        html += badge(result.status.df,'DF') + badge(result.status.ess,'ESS') + badge(result.status.goal,'GOAL');
+        if(typeof result.distanceKm === 'number'){
+          const km = (Math.round(result.distanceKm * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+          html += `<span style="display:inline-block; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; margin-right:6px; margin-bottom:6px; background:rgba(0,102,255,0.15); color:var(--text); border:1px solid var(--thermal);">Distância: <span style="color:var(--lift);">${km} km</span></span>`;
+          if(result.startDetected === false){
+            html += `<div class="hint" style="margin-top:2px;">Largada válida não detectada: a distância mostrada vai só até a saída do cilindro de largada.</div>`;
+          }
+        }
+      } else {
+        html += '<div class="hint">A prova desse dia ainda não foi cadastrada pelo organizador — mostrando só o traçado.</div>';
+      }
+      const violations = result.violations || [];
+      if(violations.length){
+        html += `<div class="pin-box warn show" style="margin-top:10px;"><div class="msg"><strong>⚠️ Invasão de espaço aéreo detectada:</strong><br>` +
+          violations.map(v => {
+            const detalhe = v.kind === 'vertical'
+              ? `${v.verticalExcess}m acima do permitido`
+              : `${v.horizontalExcess}m de invasão horizontal`;
+            return `${escapeHtml(v.area)} às ${v.hora} (UTC-3), ${detalhe}.`;
+          }).join('<br>') + `</div></div>`;
+      } else if((result.airspaces || []).length){
+        html += `<div class="hint" style="margin-top:10px; color:var(--lift);">✓ Nenhuma invasão de espaço aéreo detectada.</div>`;
+      }
+      statusBox.innerHTML = html;
+    }catch(e){
+      if(reqId !== mapReqId) return;
+      document.getElementById('mapViewTitle').textContent = pilotNameForTitle ? `Prova de ${pilotNameForTitle}` : 'Sua prova no mapa';
+      statusBox.innerHTML = '<div class="empty" style="padding:10px 0;">Não consegui verificar esse voo agora: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // Mostra só a prova do dia selecionado (pilões, espaço aéreo, rota colorida), sem voo de piloto
+  async function showDayTaskOnMap(){
+    ensurePilotMap();
+    const reqId = ++mapReqId;
+    const statusBox = document.getElementById('flightStatusBox');
+    const title = document.getElementById('mapViewTitle');
+    const sel = document.getElementById('dayContextSelect');
+    const date = sel && sel.value ? sel.value : null;
+    const clearAll = ()=>{
+      pilotMapLayers.task.clearLayers(); pilotMapLayers.airspace.clearLayers(); pilotMapLayers.igc.clearLayers();
+    };
+    if(!eventDays.length || !date){
+      mapFlightShown = false;
+      clearAll();
+      title.textContent = 'Prova do dia';
+      statusBox.innerHTML = '<div class="hint">Nenhum dia de prova cadastrado ainda.</div>';
+      return;
+    }
+    const day = eventDays.find(d => d.event_date === date);
+    title.textContent = `Prova do dia — ${day ? day.label : 'Prova'} (${formatDateBR(date)})`;
+    statusBox.innerHTML = '<div class="hint">Carregando a prova...</div>';
+    try{
+      const result = await checkFlight(null, date);
+      if(reqId !== mapReqId) return;
+      mapFlightShown = false;
+      pilotMapLayers.igc.clearLayers();
+      const airBounds = drawAirspacesOnMap(result.airspaces);
+      const taskBounds = drawTaskOnMap(result.turnpoints, result.optimizedRoute, result.goalLine, result.leadRoute);
+      const fb = L.latLngBounds();
+      let any = false;
+      [airBounds, taskBounds].forEach(b=>{ if(b){ fb.extend(b); any = true; } });
+      setTimeout(()=>{
+        if(!pilotLeafletMap || reqId !== mapReqId) return;
+        pilotLeafletMap.invalidateSize();
+        if(any) pilotLeafletMap.fitBounds(fb, { padding:[20,20] });
+      }, 150);
+      statusBox.innerHTML = (result.turnpoints && result.turnpoints.length)
+        ? ''
+        : '<div class="hint">A prova desse dia ainda não foi cadastrada pelo organizador.</div>';
+    }catch(e){
+      if(reqId !== mapReqId) return;
+      statusBox.innerHTML = '<div class="empty" style="padding:10px 0;">Não consegui carregar a prova agora: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function viewPilotFlight(pilotId, pilotName, date){
+    const statusBox = document.getElementById('flightStatusBox');
+    mapReqId++;
+    switchPilotoView('map', { skipTask:true });
+    document.getElementById('mapViewTitle').textContent = `Carregando prova de ${pilotName}...`;
+    statusBox.innerHTML = '';
+    try{
+      const { data, error } = await sb.rpc('get_flight_content', { p_pilot_id: pilotId, p_date: date });
+      if(error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if(!row || !row.content){
+        document.getElementById('mapViewTitle').textContent = 'Sua prova no mapa';
+        statusBox.innerHTML = '<div class="empty" style="padding:10px 0;">Não encontrei o voo desse piloto.</div>';
+        return;
+      }
+      await renderFlightOnMap(row.content, date, row.pilot_name || pilotName, pilotId);
+    }catch(e){
+      document.getElementById('mapViewTitle').textContent = 'Sua prova no mapa';
+      statusBox.innerHTML = '<div class="empty" style="padding:10px 0;">Não consegui carregar esse voo.</div>';
+    }
+  }
+
+  // ---------- Comparar pilotos ----------
+  const CMP_COLORS = ['#1d4ed8', '#d6249f', '#f97316', '#7c3aed', '#0891b2'];
+  const CMP_MAX = 5;
+  let cmpActive = false, cmpDate = null;
+  let cmpAvailable = [];        // [{id, name, glider}] pilotos com IGC enviado no dia
+  let cmpSelected = [];         // [{id, name, color, track, loading, distanceKm, line, trail, marker, markerOn}]
+  const cmpCache = {};          // `${id}|${data}` -> { track, distanceKm }
+  let cmpT = 0, cmpMin = 0, cmpMax = 0, cmpPlaying = false, cmpRaf = null, cmpLastTs = 0, cmpLastDraw = 0;
+  const CMP_TRAIL_SEC = 600;    // rastro de 10 minutos atrás de cada piloto
+
+  function cmpShowPanel(on){
+    document.getElementById('cmpPanel').style.display = on ? 'block' : 'none';
+    document.getElementById('cmpListBtn').textContent = on ? 'Ocultar lista ▴' : 'Escolher pilotos ▾';
+    setTimeout(()=>{ if(pilotLeafletMap) pilotLeafletMap.invalidateSize(); }, 50);
+  }
+  document.getElementById('cmpListBtn').addEventListener('click', ()=>{
+    cmpShowPanel(document.getElementById('cmpPanel').style.display === 'none');
+  });
+
+  function cmpNorm(s){ return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+  function cmpShortName(name){
+    const w = String(name || '').trim().split(/\s+/).filter(Boolean);
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    if(!w.length) return '?';
+    return w.length > 1 ? `${cap(w[0])} ${w[1].charAt(0).toUpperCase()}.` : cap(w[0]);
+  }
+  function cmpClock(sec){   // segundos UTC -> HH:MM:SS (UTC-3)
+    let s = Math.round(sec) - 3 * 3600;
+    s = ((s % 86400) + 86400) % 86400;
+    const p = n => String(n).padStart(2, '0');
+    return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
+  }
+
+  async function cmpLoadAvailable(){
+    const list = document.getElementById('cmpList');
+    const sel = document.getElementById('dayContextSelect');
+    cmpDate = sel && sel.value ? sel.value : null;
+    if(!cmpDate){ cmpAvailable = []; cmpRenderList(); return; }
+    list.innerHTML = '<div class="hint" style="padding:8px 0;">Carregando pilotos...</div>';
+    const date = cmpDate;
+    try{
+      const { data, error } = await sb.rpc('pilots_submitted_for_date', { p_date: date });
+      if(error) throw error;
+      if(date !== cmpDate) return;
+      const ids = new Set((data || []).map(v => String(v)));
+      cmpAvailable = pilots.filter(p => ids.has(String(p.id))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    }catch(e){
+      cmpAvailable = [];
+      list.innerHTML = '<div class="hint" style="padding:8px 0;">Não consegui carregar a lista agora.</div>';
+      return;
+    }
+    cmpRenderList();
+  }
+
+  function cmpRenderList(){
+    const list = document.getElementById('cmpList');
+    const q = cmpNorm(document.getElementById('cmpSearch').value);
+    const full = cmpSelected.length >= CMP_MAX;
+    document.getElementById('cmpCount').textContent = `Escolha até ${CMP_MAX} pilotos (${cmpSelected.length}/${CMP_MAX})`;
+    if(!cmpAvailable.length){
+      list.innerHTML = '<div class="hint" style="padding:8px 0;">Nenhum piloto enviou IGC nesse dia ainda.</div>';
+      return;
+    }
+    const rows = cmpAvailable.filter(p => !q || cmpNorm(p.name).includes(q));
+    if(!rows.length){ list.innerHTML = '<div class="hint" style="padding:8px 0;">Nenhum piloto encontrado.</div>'; return; }
+    list.innerHTML = rows.map(p => {
+      const s = cmpSelected.find(x => String(x.id) === String(p.id));
+      const off = !s && full;
+      return `<label class="cmp-row${off ? ' off' : ''}">
+        <input type="checkbox" data-pid="${escapeHtml(String(p.id))}" ${s ? 'checked' : ''} ${off ? 'disabled' : ''}>
+        <span class="dot" style="${s ? `background:${s.color}; border-color:#fff;` : ''}"></span>
+        <span>${escapeHtml(p.name)}</span>
+      </label>`;
+    }).join('');
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', ()=> cmpToggleSelect(cb.dataset.pid));
+    });
+  }
+
+  function cmpRenderChips(){
+    const box = document.getElementById('cmpChips');
+    box.innerHTML = cmpSelected.map(s => {
+      const km = typeof s.distanceKm === 'number'
+        ? ' · ' + (Math.round(s.distanceKm * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' km' : '';
+      return `<span class="cmp-chip" style="border-color:${s.color};">
+        <span class="dot" style="background:${s.color};"></span>
+        <span>${escapeHtml(cmpShortName(s.name))}${s.loading ? ' · carregando...' : escapeHtml(km)}</span>
+        <button data-rm="${escapeHtml(String(s.id))}" aria-label="Remover">✕</button>
+      </span>`;
+    }).join('');
+    box.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', ()=> cmpToggleSelect(b.dataset.rm)));
+  }
+
+  function cmpRemoveLayers(s){
+    if(s.line) pilotMapLayers.cmp.removeLayer(s.line);
+    if(s.trail) pilotMapLayers.cmp.removeLayer(s.trail);
+    if(s.marker) pilotMapLayers.cmp.removeLayer(s.marker);
+    s.line = s.trail = s.marker = null; s.markerOn = false;
+  }
+
+  function cmpToggleSelect(pid){
+    const idx = cmpSelected.findIndex(x => String(x.id) === String(pid));
+    if(idx >= 0){
+      cmpRemoveLayers(cmpSelected[idx]);
+      cmpSelected.splice(idx, 1);
+      cmpAfterChange();
+      return;
+    }
+    if(cmpSelected.length >= CMP_MAX) return;
+    const p = cmpAvailable.find(x => String(x.id) === String(pid));
+    if(!p) return;
+    const used = new Set(cmpSelected.map(x => x.color));
+    const color = CMP_COLORS.find(c => !used.has(c)) || CMP_COLORS[0];
+    const s = { id: p.id, name: p.name, color, track: null, loading: true, distanceKm: null, line: null, trail: null, marker: null, markerOn: false };
+    cmpSelected.push(s);
+    cmpAfterChange();
+    cmpLoadTrack(s);
+    if(cmpSelected.length >= CMP_MAX) cmpShowPanel(false);
+  }
+
+  async function cmpLoadTrack(s){
+    const date = cmpDate, key = `${s.id}|${date}`;
+    const stillValid = ()=> date === cmpDate && cmpSelected.includes(s);
+    try{
+      let entry = cmpCache[key];
+      if(!entry){
+        const { data, error } = await sb.rpc('get_flight_content', { p_pilot_id: s.id, p_date: date });
+        if(error) throw error;
+        const row = Array.isArray(data) ? data[0] : data;
+        if(!row || !row.content) throw new Error('voo não encontrado');
+        const result = await checkFlight(row.content, date);
+        if(typeof result.startGate === 'number') cmpAll.gate = result.startGate;
+        const track = (result.track || []).map(q => ({ lat:q.lat, lon:q.lon, alt:q.alt, time:q.time }));
+        entry = cmpCache[key] = { track, distanceKm: typeof result.distanceKm === 'number' ? result.distanceKm : null };
+      }
+      if(!stillValid()) return;
+      if(!entry.track.length) throw new Error('tracklog vazio');
+      s.track = entry.track; s.distanceKm = entry.distanceKm; s.loading = false;
+      s.line = L.polyline(s.track.map(q => [q.lat, q.lon]), { color:s.color, weight:2, opacity:0.3 }).addTo(pilotMapLayers.cmp);
+      s.trail = L.polyline([], { color:s.color, weight:4, opacity:0.95 }).addTo(pilotMapLayers.cmp);
+      s.marker = L.circleMarker([s.track[0].lat, s.track[0].lon], { radius:7, color:'#fff', weight:2, fillColor:s.color, fillOpacity:1 });
+      const side = [['right', [9, 0]], ['left', [-9, 0]], ['top', [0, -9]], ['bottom', [0, 9]], ['right', [9, 14]]][Math.max(0, CMP_COLORS.indexOf(s.color))];
+      s.marker.bindTooltip(cmpShortName(s.name), { permanent:true, direction:side[0], offset:side[1], className:'cmp-tip' });
+      const wasEmpty = cmpSelected.filter(x => x !== s && x.track).length === 0;
+      cmpRecalcRange(wasEmpty);
+      cmpFit(s, wasEmpty);
+      cmpRenderChips();
+      cmpUpdate();
+    }catch(e){
+      if(!stillValid()) return;
+      const i = cmpSelected.indexOf(s);
+      if(i >= 0) cmpSelected.splice(i, 1);
+      cmpAfterChange();
+      document.getElementById('flightStatusBox').innerHTML =
+        `<div class="empty" style="padding:6px 0;">Não consegui carregar o voo de ${escapeHtml(cmpShortName(s.name))}: ${escapeHtml(e.message || 'erro')}</div>`;
+    }
+  }
+
+  function cmpFit(s, force){
+    if(!pilotLeafletMap || !s.line) return;
+    const b = s.line.getBounds();
+    if(force || !pilotLeafletMap.getBounds().contains(b)){
+      const all = L.latLngBounds();
+      cmpSelected.forEach(x => { if(x.line) all.extend(x.line.getBounds()); });
+      pilotLeafletMap.fitBounds(all, { padding:[30, 30] });
+    }
+  }
+
+  function cmpAfterChange(){
+    cmpRenderChips();
+    cmpRenderList();
+    cmpRecalcRange(false);
+    cmpUpdate();
+  }
+
+  // Linha do tempo: da decolagem do primeiro piloto ao pouso do último
+  function cmpRecalcRange(reset){
+    const loaded = cmpSelected.filter(s => s.track && s.track.length);
+    const box = document.getElementById('cmpTimeline');
+    if(!loaded.length){
+      cmpStop();
+      box.style.display = 'none';
+      return;
+    }
+    const wasAtStart = !box.style.display || box.style.display === 'none' || cmpT <= cmpMin;
+    cmpMin = Math.min(...loaded.map(s => s.track[0].time));
+    cmpMax = Math.max(...loaded.map(s => s.track[s.track.length - 1].time));
+    // a barra começa na decolagem do primeiro piloto: se ainda estava no início, acompanha o novo início
+    if(reset || wasAtStart || cmpT < cmpMin || cmpT > cmpMax) cmpT = cmpMin;
+    const sl = document.getElementById('cmpSlider');
+    sl.min = cmpMin; sl.max = cmpMax; sl.value = cmpT;
+    document.getElementById('cmpClockMin').textContent = cmpClock(cmpMin);
+    document.getElementById('cmpClockMax').textContent = cmpClock(cmpMax);
+    box.style.display = 'block';
+    cmpPlaceStartMark();
+  }
+
+  // marca na barra o horário do start (vem do XCTSK); some se estiver fora da faixa
+  function cmpPlaceStartMark(){
+    const mark = document.getElementById('cmpStartMark');
+    const g = cmpAll.gate;
+    if(typeof g !== 'number' || !(cmpMax > cmpMin) || g < cmpMin || g > cmpMax){ mark.style.display = 'none'; return; }
+    const pct = (g - cmpMin) / (cmpMax - cmpMin);
+    mark.style.left = `calc(15px + ${pct} * (100% - 30px))`;
+    const lbl = document.getElementById('cmpStartLbl');
+    lbl.textContent = 'Start ' + cmpClock(g).replace(/:00$/, '');
+    lbl.style.left = '0';
+    mark.style.display = 'block';
+    const box = document.getElementById('cmpTimeline').getBoundingClientRect(), r = lbl.getBoundingClientRect();
+    if(r.left < box.left) lbl.style.left = (box.left - r.left) + 'px';
+    else if(r.right > box.right) lbl.style.left = (box.right - r.right) + 'px';
+  }
+
+  function cmpIndexAtOrBefore(track, t){   // último índice com time <= t (ou -1)
+    let lo = 0, hi = track.length - 1, ans = -1;
+    while(lo <= hi){
+      const mid = (lo + hi) >> 1;
+      if(track[mid].time <= t){ ans = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    return ans;
+  }
+
+  // Classificação geral do dia (todos os pilotos), vinda do servidor em blocos
+  let cmpAll = { date: null, pilots: {}, ready: false, total: 0, gate: null };
+  let cmpAllReq = 0;
+  let cmpOthers = {};   // id -> {marker, on}  (demais pilotos: bolinhas cinza apagadas)
+
+  function cmpClearOthers(){
+    if(pilotMapLayers) pilotMapLayers.cmpOthers.clearLayers();
+    cmpOthers = {};
+  }
+  function cmpPosAt(pos, t){   // [[t,lat,lon]...] -> [lat,lon] interpolado, ou null fora do voo
+    if(!pos || !pos.length || t < pos[0][0] || t > pos[pos.length - 1][0]) return null;
+    let lo = 0, hi = pos.length - 1;
+    while(hi - lo > 1){ const m = (lo + hi) >> 1; if(pos[m][0] <= t) lo = m; else hi = m; }
+    const a = pos[lo], b = pos[hi], f = b[0] > a[0] ? (t - a[0]) / (b[0] - a[0]) : 0;
+    return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  }
+  function cmpRankOf(id, t){
+    const mine = cmpProgressAt(cmpAll.pilots[id], t);
+    if(mine === null) return null;
+    let pos = 1;
+    for(const k in cmpAll.pilots){ const v = cmpProgressAt(cmpAll.pilots[k], t); if(v !== null && v > mine + 1e-6) pos++; }
+    return pos;
+  }
+  function cmpUpdateOthers(){
+    if(!cmpActive || !pilotMapLayers) return;
+    const ready = cmpAll.date === cmpDate;
+    const selIds = new Set(cmpSelected.map(s => String(s.id)));
+    for(const id in cmpAll.pilots){
+      let o = cmpOthers[id];
+      const ll = (ready && !selIds.has(id)) ? cmpPosAt(cmpAll.pilots[id].pos, cmpT) : null;
+      if(!ll){ if(o && o.on){ pilotMapLayers.cmpOthers.removeLayer(o.marker); o.on = false; } continue; }
+      if(!o){
+        const pl = pilots.find(p => String(p.id) === id);
+        const name = pl ? pl.name : 'Piloto';
+        const marker = L.circleMarker(ll, { radius:5, color:'#fff', weight:1, opacity:0.9, fillColor:'#000', fillOpacity:0.85 });
+        marker.bindTooltip(() => {
+          const r = cmpAll.ready ? cmpRankOf(id, cmpT) : null;
+          return (r ? `<b>${r}º</b> ` : '') + escapeHtml(cmpShortName(name));
+        }, { direction:'top', offset:[0, -6], className:'cmp-tip' });
+        marker.on('click', () => marker.openTooltip());
+        o = cmpOthers[id] = { marker, on:false };
+      }
+      o.marker.setLatLng(ll);
+      if(!o.on){ o.marker.addTo(pilotMapLayers.cmpOthers); o.on = true; }
+    }
+  }
+  async function cmpLoadRanking(){
+    const sel = document.getElementById('dayContextSelect');
+    const date = sel && sel.value ? sel.value : null, req = ++cmpAllReq;
+    if(cmpAll.ready && cmpAll.date === date){ document.getElementById('cmpRankHint').style.display = 'none'; return; }
+    cmpAll = { date, pilots: {}, ready: false, total: 0, gate: cmpAll.gate };
+    cmpClearOthers();
+    const hint = document.getElementById('cmpRankHint');
+    if(!date) return;
+    hint.style.display = 'block'; hint.textContent = 'Calculando a classificação geral…';
+    try{
+      let fails = 0;
+      for(let guard = 0; guard < 120; guard++){
+        let data;
+        try{
+          const res = await fetch(CHECK_FLIGHT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+            body: JSON.stringify({ date, ranking: true, skip: Object.keys(cmpAll.pilots) })
+          });
+          data = await res.json().catch(() => ({}));
+          if(!res.ok || data.error) throw new Error(data.error || data.message || ('HTTP ' + res.status));
+        }catch(err){
+          if(req !== cmpAllReq) return;
+          // falha momentânea do servidor (ex.: falta de recursos): tenta de novo até 4 vezes
+          if(++fails > 4) throw err;
+          await new Promise(r => setTimeout(r, 1500 * fails));
+          if(req !== cmpAllReq) return;
+          continue;
+        }
+        fails = 0;
+        if(req !== cmpAllReq) return;
+        Object.assign(cmpAll.pilots, data.pilots || {});
+        cmpUpdateOthers();
+        if(typeof data.startGate === 'number'){ cmpAll.gate = data.startGate; cmpPlaceStartMark(); }
+        cmpAll.total = data.total || Object.keys(cmpAll.pilots).length;
+        if(!data.pending){ cmpAll.ready = true; break; }
+        hint.textContent = `Calculando a classificação geral… ${Object.keys(cmpAll.pilots).length}/${cmpAll.total}`;
+      }
+      if(!cmpAll.ready) throw new Error('incompleto');
+      hint.style.display = 'none';
+      cmpUpdate();
+    }catch(e){
+      if(req !== cmpAllReq) return;
+      hint.textContent = 'Não consegui calcular a classificação geral agora' + (e && e.message ? ' (' + String(e.message).slice(0, 120) + ')' : '.');
+    }
+  }
+
+
+  // Progresso (km voados "na prova") do piloto no instante t; null se ainda não largou ou sem dados
+  function cmpProgressAt(pg, t){
+    if(!pg || pg.startTime === null || pg.startTime === undefined || !pg.samples || !pg.samples.length || t < pg.startTime) return null;
+    const a = pg.samples;
+    if(t >= a[a.length - 1][0]) return a[a.length - 1][1];
+    let lo = 0, hi = a.length - 1;
+    while(hi - lo > 1){ const m = (lo + hi) >> 1; if(a[m][0] <= t) lo = m; else hi = m; }
+    const f = a[hi][0] > a[lo][0] ? (t - a[lo][0]) / (a[hi][0] - a[lo][0]) : 0;
+    return a[lo][1] + (a[hi][1] - a[lo][1]) * f;
+  }
+
+  function cmpUpdate(){
+    document.getElementById('cmpClock').textContent = cmpClock(cmpT);
+    const shown = [];
+    cmpSelected.forEach(s => {
+      if(!s.track || !s.marker) return;
+      const tr = s.track, i = cmpIndexAtOrBefore(tr, cmpT);
+      if(i < 0){                                   // ainda não decolou
+        if(s.markerOn){ pilotMapLayers.cmp.removeLayer(s.marker); s.markerOn = false; }
+        s.trail.setLatLngs([]);
+        return;
+      }
+      let lat = tr[i].lat, lon = tr[i].lon, alt = tr[i].alt;
+      if(i < tr.length - 1){
+        const a = tr[i], b = tr[i + 1], f = b.time > a.time ? (cmpT - a.time) / (b.time - a.time) : 0;
+        lat = a.lat + (b.lat - a.lat) * f; lon = a.lon + (b.lon - a.lon) * f; alt = Math.round(a.alt + (b.alt - a.alt) * f);
+      }
+      if(!s.markerOn){ s.marker.addTo(pilotMapLayers.cmp); s.markerOn = true; }
+      s.marker.setLatLng([lat, lon]);
+      shown.push(s);
+      const j = Math.max(0, cmpIndexAtOrBefore(tr, cmpT - CMP_TRAIL_SEC));
+      const stride = Math.max(1, Math.floor((i - j) / 300));
+      const pts = [];
+      for(let k = j; k <= i; k += stride) pts.push([tr[k].lat, tr[k].lon]);
+      pts.push([lat, lon]);
+      s.trail.setLatLngs(pts);
+    });
+    // posição na prova neste instante: 1st, 2nd... (quem ainda não largou fica só com o nome)
+    cmpUpdateOthers();
+    const ready = cmpAll.ready && cmpAll.date === cmpDate;
+    const everyone = ready ? Object.values(cmpAll.pilots).map(pg => cmpProgressAt(pg, cmpT)).filter(v => v !== null) : [];
+    shown.forEach(s => {
+      const nm = escapeHtml(cmpShortName(s.name));
+      const mine = ready ? cmpProgressAt(cmpAll.pilots[String(s.id)], cmpT) : null;
+      if(mine === null){ s.marker.setTooltipContent(nm); return; }
+      let pos = 1;
+      for(const v of everyone) if(v > mine + 1e-6) pos++;
+      s.marker.setTooltipContent(`<b>${pos}º</b> ${nm}`);
+    });
+  }
+
+  function cmpSetPlaying(on){
+    cmpPlaying = on;
+    document.getElementById('cmpPlayBtn').textContent = on ? '❚❚' : '▶';
+    document.getElementById('cmpPlayBtn').setAttribute('aria-label', on ? 'Pausar' : 'Tocar');
+    if(cmpRaf){ cancelAnimationFrame(cmpRaf); cmpRaf = null; }
+    if(on){
+      if(cmpT >= cmpMax) cmpT = cmpMin;
+      cmpLastTs = performance.now();
+      cmpRaf = requestAnimationFrame(cmpTick);
+    }
+  }
+  function cmpStop(){ if(cmpPlaying) cmpSetPlaying(false); }
+
+  function cmpTick(ts){
+    if(!cmpPlaying) return;
+    const speed = Number(document.getElementById('cmpSpeed').value) || 20;
+    cmpT += (ts - cmpLastTs) / 1000 * speed;
+    cmpLastTs = ts;
+    let ended = false;
+    if(cmpT >= cmpMax){ cmpT = cmpMax; ended = true; }
+    if(ts - cmpLastDraw > 40 || ended){
+      cmpLastDraw = ts;
+      document.getElementById('cmpSlider').value = cmpT;
+      cmpUpdate();
+    }
+    if(ended){ cmpSetPlaying(false); return; }
+    cmpRaf = requestAnimationFrame(cmpTick);
+  }
+
+  document.getElementById('cmpPlayBtn').addEventListener('click', ()=> cmpSetPlaying(!cmpPlaying));
+  document.getElementById('cmpSlider').addEventListener('input', (e)=>{
+    cmpT = Number(e.target.value);
+    cmpUpdate();
+  });
+  document.getElementById('cmpSearch').addEventListener('input', cmpRenderList);
+  document.getElementById('cmpRefresh').addEventListener('click', cmpLoadAvailable);
+
+  // Limpa tudo do modo comparar (sem recarregar a prova)
+  function cmpResetUI(){
+    cmpStop();
+    cmpAllReq++;
+    cmpClearOthers();
+    cmpSelected.forEach(cmpRemoveLayers);
+    cmpSelected = [];
+    if(pilotMapLayers) pilotMapLayers.cmp.clearLayers();
+    cmpActive = false;
+    document.getElementById('cmpPanel').style.display = 'none';
+    document.getElementById('cmpListBtn').style.display = 'none';
+    document.getElementById('cmpTimeline').style.display = 'none';
+    document.getElementById('cmpChips').innerHTML = '';
+    document.getElementById('cmpRankHint').style.display = 'none';
+    document.getElementById('cmpSearch').value = '';
+    document.getElementById('cmpToggleBtn').textContent = 'Comparar';
+    const m = document.getElementById('pilotMap'); if(m) m.classList.remove('cmp-mode');
+  }
+
+  async function cmpEnter(){
+    // piloto que estava no mapa (lido antes de a prova do dia ser redesenhada)
+    const pre = (mapFlightShown && mapViewedPilot) ? mapViewedPilot : null;
+    cmpActive = true;
+    document.getElementById('cmpToggleBtn').textContent = 'Sair da comparação';
+    document.getElementById('cmpListBtn').style.display = '';
+    cmpShowPanel(true);
+    document.getElementById('pilotMap').classList.add('cmp-mode');
+    mapFlightShown = false;
+    mapViewedPilot = null;
+    showDayTaskOnMap();          // garante prova do dia no mapa e tira o voo avulso
+    cmpLoadRanking();
+    await cmpLoadAvailable();
+    if(cmpActive && pre && pre.date === cmpDate && cmpAvailable.some(p => String(p.id) === pre.id) && !cmpSelected.some(x => String(x.id) === pre.id)){
+      cmpToggleSelect(pre.id);
+    }
+  }
+
+  function cmpExit(){
+    cmpResetUI();
+    showDayTaskOnMap();
+  }
+
+  function cmpOnDayChange(){
+    cmpStop();
+    cmpSelected.forEach(cmpRemoveLayers);
+    cmpSelected = [];
+    pilotMapLayers.cmp.clearLayers();
+    document.getElementById('cmpTimeline').style.display = 'none';
+    document.getElementById('cmpChips').innerHTML = '';
+    cmpAll = { date: null, pilots: {}, ready: false, total: 0, gate: null };
+    cmpClearOthers();
+    showDayTaskOnMap();
+    cmpLoadAvailable().then(cmpLoadRanking);
+  }
+
+  document.getElementById('cmpToggleBtn').addEventListener('click', ()=>{
+    ensurePilotMap();
+    if(cmpActive) cmpExit(); else cmpEnter();
+  });
+
+  function switchPilotoView(view, opts){
+    document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
+    document.getElementById('mapView').style.display = view === 'map' ? 'block' : 'none';
+    document.getElementById('toggleListBtn').classList.toggle('active', view === 'list');
+    document.getElementById('toggleMapBtn').classList.toggle('active', view === 'map');
+    if(view === 'list') cmpStop();
+    if(view === 'map'){
+      ensurePilotMap();
+      setTimeout(()=>{ if(pilotLeafletMap) pilotLeafletMap.invalidateSize(); }, 50);
+      if(!mapFlightShown && !(opts && opts.skipTask)) showDayTaskOnMap();
+    }
+  }
+  document.getElementById('toggleListBtn').addEventListener('click', ()=> switchPilotoView('list'));
+  document.getElementById('toggleMapBtn').addEventListener('click', ()=> switchPilotoView('map'));
+  switchPilotoView('list');
+
+  function appConfirm(message){
+    return new Promise((resolve)=>{
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <p>${escapeHtml(message)}</p>
+          <div class="modal-actions">
+            <button class="btn-cancel">Cancelar</button>
+            <button class="btn-confirm">Confirmar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const cleanup = (result)=>{ document.body.removeChild(overlay); resolve(result); };
+      overlay.querySelector('.btn-cancel').addEventListener('click', ()=> cleanup(false));
+      overlay.querySelector('.btn-confirm').addEventListener('click', ()=> cleanup(true));
+      overlay.addEventListener('click', (e)=>{ if(e.target === overlay) cleanup(false); });
+    });
+  }
+
+  function appAlert(message){
+    return new Promise((resolve)=>{
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <p>${escapeHtml(message)}</p>
+          <div class="modal-actions">
+            <button class="btn-ok">OK</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const cleanup = ()=>{ document.body.removeChild(overlay); resolve(); };
+      overlay.querySelector('.btn-ok').addEventListener('click', cleanup);
+      overlay.addEventListener('click', (e)=>{ if(e.target === overlay) cleanup(); });
+    });
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- Reusable pilot combobox ----------
+  function makePilotCombo(searchInput, listEl, onSelect){
+    function render(filter){
+      const f = (filter||'').toLowerCase();
+      const matches = pilots.filter(p => p.name.toLowerCase().includes(f));
+      listEl.innerHTML = '';
+      if(!matches.length){ listEl.classList.remove('show'); return; }
+      matches.slice(0,30).forEach(p=>{
+        const div = document.createElement('div');
+        div.className = 'combo-item';
+        div.innerHTML = `<div class="top"><span>${escapeHtml(p.name)}</span><span class="pid">${escapeHtml(p.id)}</span></div>${p.glider ? `<div class="glider">${escapeHtml(p.glider)}</div>` : ''}`;
+        div.addEventListener('click', ()=>{
+          listEl.classList.remove('show');
+          searchInput.value = p.name;
+          onSelect(p);
+        });
+        listEl.appendChild(div);
+      });
+      listEl.classList.add('show');
+    }
+    searchInput.addEventListener('input', ()=>{ render(searchInput.value); onSelect(null); });
+    searchInput.addEventListener('focus', ()=> render(searchInput.value));
+    document.addEventListener('click', (e)=>{
+      const wrapper = searchInput.closest('.combo');
+      if(wrapper && !wrapper.contains(e.target)) listEl.classList.remove('show');
+    });
+  }
+
+  // ---------- Piloto tab: pilot selection + pin gate ----------
+  async function refreshPinStatusForSelectedPilot(){
+    if(!selectedPilot) return;
+    const pinBox = document.getElementById('pinEntryBox');
+    const pinMsg = document.getElementById('pinMissingMsg');
+    pinBox.classList.remove('show');
+    pinMsg.classList.remove('show');
+    try{
+      const { data, error } = await sb.rpc('pilot_has_pin', { p_pilot_id: selectedPilot.id });
+      if(error) throw error;
+      if(data){ pinBox.classList.add('show'); } else { pinMsg.classList.add('show'); }
+    }catch(e){
+      pinMsg.querySelector('.msg').textContent = 'Não consegui verificar seu PIN agora. Tente novamente.';
+      pinMsg.classList.add('show');
+    }
+    updatePreview();
+  }
+
+  makePilotCombo(document.getElementById('pilotSearch'), document.getElementById('pilotList'), async (p)=>{
+    selectedPilot = p;
+    const box = document.getElementById('selectedPilotBox');
+    const pinBox = document.getElementById('pinEntryBox');
+    const pinMsg = document.getElementById('pinMissingMsg');
+    document.getElementById('pilotPinInput').value = '';
+    if(!p){
+      box.classList.remove('show');
+      pinBox.classList.remove('show');
+      pinMsg.classList.remove('show');
+      updatePreview();
+      return;
+    }
+    box.classList.add('show');
+    document.getElementById('selectedPilotName').textContent = p.name;
+    document.getElementById('selectedPilotId').textContent = 'ID '+p.id;
+    document.getElementById('selectedPilotGlider').textContent = p.glider || 'Equipamento não cadastrado';
+    await refreshPinStatusForSelectedPilot();
+    updatePreview();
+  });
+
+  document.getElementById('pilotPinInput').addEventListener('input', updatePreview);
+  document.getElementById('dayContextSelect').addEventListener('change', updatePreview);
+
+  // ---------- Pin tab: pilot selection + registration ----------
+  async function selecionarPilotoParaPin(p){
+    selectedPinPilot = p;
+    const box = document.getElementById('pinSelectedBox');
+    const already = document.getElementById('pinAlreadyMsg');
+    const form = document.getElementById('pinCreateForm');
+    document.getElementById('newPin1').value = '';
+    document.getElementById('newPin2').value = '';
+    if(!p){
+      box.classList.remove('show'); already.classList.remove('show'); form.classList.remove('show');
+      return;
+    }
+    box.classList.add('show');
+    document.getElementById('pinSelName').textContent = p.name;
+    document.getElementById('pinSelId').textContent = 'ID '+p.id;
+    already.classList.remove('show');
+    form.classList.remove('show');
+    try{
+      const { data, error } = await sb.rpc('pilot_has_pin', { p_pilot_id: p.id });
+      if(error) throw error;
+      if(data){
+        already.querySelector('.msg').textContent = 'Esse piloto já tem um PIN cadastrado. Se esqueceu o número, peça ao organizador pra resetar.';
+        already.classList.add('show');
+      } else {
+        form.classList.add('show');
+      }
+    }catch(e){
+      already.querySelector('.msg').textContent = 'Não consegui verificar. Tente novamente.';
+      already.classList.add('show');
+    }
+  }
+  makePilotCombo(document.getElementById('pinSearch'), document.getElementById('pinList'), selecionarPilotoParaPin);
+
+  document.getElementById('createPinBtn').addEventListener('click', async ()=>{
+    const toast = document.getElementById('pinToast');
+    if(!selectedPinPilot){ return; }
+    const p1 = document.getElementById('newPin1').value.trim();
+    const p2 = document.getElementById('newPin2').value.trim();
+    if(!/^\d{4}$/.test(p1)){
+      toast.textContent = 'O PIN precisa ter exatamente 4 números.';
+      toast.className = 'toast err show';
+      return;
+    }
+    if(p1 !== p2){
+      toast.textContent = 'Os dois PINs digitados não coincidem.';
+      toast.className = 'toast err show';
+      return;
+    }
+    const btn = document.getElementById('createPinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Cadastrando...';
+    try{
+      const { error } = await sb.from('pilot_pins').insert({ pilot_id: selectedPinPilot.id, pin: p1 });
+      if(error){
+        if(error.code === '23505'){
+          toast.textContent = 'Esse piloto já tem um PIN cadastrado.';
+          toast.className = 'toast err show';
+          document.getElementById('pinCreateForm').classList.remove('show');
+          const already = document.getElementById('pinAlreadyMsg');
+          already.querySelector('.msg').textContent = 'Esse piloto já tem um PIN cadastrado.';
+          already.classList.add('show');
+        } else {
+          throw error;
+        }
+      } else {
+        toast.textContent = 'PIN cadastrado! Guarde esse número — você vai precisar dele pra enviar seus voos.';
+        toast.className = 'toast ok show';
+        document.getElementById('pinCreateForm').classList.remove('show');
+        const already = document.getElementById('pinAlreadyMsg');
+        already.querySelector('.msg').textContent = 'PIN cadastrado com sucesso para esse piloto.';
+        already.classList.add('show');
+        if(selectedPilot && selectedPinPilot && selectedPilot.id === selectedPinPilot.id){
+          refreshPinStatusForSelectedPilot();
+        }
+      }
+    }catch(e){
+      toast.textContent = 'Erro ao cadastrar PIN: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Cadastrar PIN';
+  });
+
+  // ---------- IGC parsing ----------
+  function extractDateFromIGC(text){
+    const lines = text.split(/\r?\n/);
+    for(const line of lines){
+      if(line.toUpperCase().startsWith('HFDTE')){
+        const digits = line.replace(/[^0-9]/g,'');
+        if(digits.length >= 6){
+          const dd = digits.slice(0,2);
+          const mm = digits.slice(2,4);
+          let yy = digits.slice(4,6);
+          const year = (parseInt(yy,10) < 50 ? '20' : '19') + yy;
+          return `${year}-${mm}-${dd}`;
+        }
+      }
+    }
+    return null;
+  }
+
+  function normalizeName(name){
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().trim().replace(/\s+/g,'-').replace(/[^A-Z0-9-]/g,'');
+  }
+
+  // ---------- IGC file handling ----------
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+
+  function handleFile(file){
+    if(file.size > 5 * 1024 * 1024){
+      parsedFlight = null; fileInput.value = '';
+      document.getElementById('preview').classList.remove('show');
+      const t = document.getElementById('pilotToast');
+      if(t){ t.textContent = 'Arquivo grande demais (máximo 5 MB). Um IGC normal tem bem menos que isso — confira se é o arquivo certo.'; t.className = 'toast err show'; }
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const content = reader.result;
+      const date = extractDateFromIGC(content);
+      parsedFlight = { content, originalName: file.name, date };
+      updatePreview();
+    };
+    reader.readAsText(file);
+  }
+
+  function updatePreview(){
+    const preview = document.getElementById('preview');
+    const warn = document.getElementById('pWarn');
+    if(!parsedFlight){
+      preview.classList.remove('show');
+      document.getElementById('submitBtn').disabled = true;
+      return;
+    }
+    preview.classList.add('show');
+    document.getElementById('pOriginal').textContent = parsedFlight.originalName;
+    document.getElementById('pDate').textContent = parsedFlight.date || '— não encontrada';
+    document.getElementById('pPilot').textContent = selectedPilot ? `${selectedPilot.name} (${selectedPilot.id})` : '— selecione acima';
+    document.getElementById('pGlider').textContent = selectedPilot ? (selectedPilot.glider || 'não cadastrado') : '—';
+
+    let ready = true;
+    warn.style.display = 'none';
+    if(!parsedFlight.date){
+      warn.textContent = 'Não encontrei a data de voo (registro HFDTE) dentro do arquivo. Confirme que é um IGC válido.';
+      warn.style.display = 'block';
+      ready = false;
+    } else {
+      const select = document.getElementById('dayContextSelect');
+      const selectedDate = select && eventDays.length ? select.value : null;
+      const selectedDay = eventDays.find(d => d.event_date === selectedDate);
+      if(selectedDay && parsedFlight.date !== selectedDay.event_date){
+        warn.textContent = `A data do voo (${formatDateBR(parsedFlight.date)}) não bate com o dia selecionado (${selectedDay.label} — ${formatDateBR(selectedDay.event_date)}). Selecione o dia certo acima, ou confira se é o arquivo certo, antes de enviar.`;
+        warn.style.display = 'block';
+        ready = false;
+      }
+    }
+    if(!selectedPilot){ ready = false; }
+    const pinFilled = /^\d{4}$/.test(document.getElementById('pilotPinInput').value.trim());
+    const pinBoxVisible = document.getElementById('pinEntryBox').classList.contains('show');
+    if(!pinBoxVisible || !pinFilled){ ready = false; }
+
+    if(ready){
+      const filename = `${parsedFlight.date}-${normalizeName(selectedPilot.name)}.${selectedPilot.id}.igc`;
+      document.getElementById('pFilename').textContent = filename;
+      document.getElementById('pFilename').style.display = 'block';
+    } else {
+      document.getElementById('pFilename').style.display = 'none';
+    }
+    document.getElementById('submitBtn').disabled = !ready;
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('submitBtn');
+    const toast = document.getElementById('pilotToast');
+    if(!parsedFlight || !selectedPilot || !parsedFlight.date) return;
+    const pin = document.getElementById('pilotPinInput').value.trim();
+    if(!/^\d{4}$/.test(pin)){
+      toast.textContent = 'Digite os 4 dígitos do seu PIN.';
+      toast.className = 'toast err show';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try{
+      const filename = `${parsedFlight.date}-${normalizeName(selectedPilot.name)}.${selectedPilot.id}.igc`;
+      const { data: result, error: subErr } = await sb.rpc('submit_flight', {
+        p_pilot_id: selectedPilot.id,
+        p_date: parsedFlight.date,
+        p_pin: pin,
+        p_pilot_name: selectedPilot.name,
+        p_filename: filename,
+        p_original_name: parsedFlight.originalName,
+        p_content: parsedFlight.content
+      });
+      if(subErr) throw subErr;
+      if(result === 'invalid_pin'){
+        toast.textContent = 'PIN incorreto. Confira o número e tente de novo.';
+        toast.className = 'toast err show';
+        btn.disabled = false;
+        btn.textContent = 'Enviar voo';
+        return;
+      }
+      if(result === 'locked'){
+        toast.textContent = 'Muitas tentativas de PIN erradas. Aguarde 15 minutos e tente de novo, ou fale com o organizador.';
+        toast.className = 'toast err show';
+        btn.disabled = false;
+        btn.textContent = 'Enviar voo';
+        return;
+      }
+      if(result === 'too_large'){
+        toast.textContent = 'Arquivo grande demais (máximo 5 MB).';
+        toast.className = 'toast err show';
+        btn.disabled = false;
+        btn.textContent = 'Enviar voo';
+        return;
+      }
+      if(result === 'already_submitted'){
+        toast.textContent = 'Você já enviou o voo desse dia. Se precisar corrigir, fale com o organizador — ele consegue apagar o envio anterior pra você reenviar.';
+        toast.className = 'toast err show';
+        btn.disabled = false;
+        btn.textContent = 'Enviar voo';
+        return;
+      }
+      if(result !== 'ok'){
+        toast.textContent = 'Não consegui enviar o voo (resposta inesperada do servidor). Tente de novo ou fale com o organizador.';
+        toast.className = 'toast err show';
+        btn.disabled = false;
+        btn.textContent = 'Enviar voo';
+        return;
+      }
+      toast.textContent = `Voo recebido como ${filename}`;
+      toast.className = 'toast ok show';
+      const submittedContent = parsedFlight.content;
+      const submittedDate = parsedFlight.date;
+      const submittedPilotId = selectedPilot ? selectedPilot.id : null;
+      parsedFlight = null;
+      fileInput.value = '';
+      document.getElementById('pilotPinInput').value = '';
+      document.getElementById('preview').classList.remove('show');
+      loadSubmissionStatus();
+      switchPilotoView('map', { skipTask:true });
+      renderFlightOnMap(submittedContent, submittedDate, undefined, submittedPilotId);
+    }catch(e){
+      toast.textContent = 'Não consegui enviar o voo: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.textContent = 'Enviar voo';
+    btn.disabled = false;
+  });
+
+  // ---------- Organizer auth ----------
+  async function refreshOrgAuthUI(){
+    const { data: { session } } = await sb.auth.getSession();
+    const loggedIn = !!session;
+    document.getElementById('orgLoginBox').style.display = loggedIn ? 'none' : 'block';
+    document.getElementById('orgContent').style.display = loggedIn ? 'block' : 'none';
+    if(loggedIn){
+      loadFlights();
+    }
+  }
+
+  document.getElementById('orgLoginForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('orgEmail').value.trim();
+    const pass = document.getElementById('orgPassword').value;
+    const toast = document.getElementById('orgLoginToast');
+    const btn = document.getElementById('orgLoginBtn');
+    if(!email || !pass){
+      toast.textContent = 'Preencha e-mail e senha.';
+      toast.className = 'toast err show';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    try{
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if(error) throw error;
+      toast.classList.remove('show');
+      await refreshOrgAuthUI();
+    }catch(e2){
+      toast.textContent = 'Login inválido: e-mail ou senha incorretos.';
+      toast.className = 'toast err show';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  });
+
+  document.getElementById('orgLogoutBtn').addEventListener('click', async ()=>{
+    await sb.auth.signOut();
+    await refreshOrgAuthUI();
+  });
+
+  // ---------- Organizer: spreadsheet import ----------
+  const sheetDropzone = document.getElementById('sheetDropzone');
+  const sheetInput = document.getElementById('sheetInput');
+  sheetDropzone.addEventListener('click', ()=> sheetInput.click());
+  sheetDropzone.addEventListener('dragover', e=>{ e.preventDefault(); sheetDropzone.classList.add('drag'); });
+  sheetDropzone.addEventListener('dragleave', ()=> sheetDropzone.classList.remove('drag'));
+  sheetDropzone.addEventListener('drop', e=>{
+    e.preventDefault(); sheetDropzone.classList.remove('drag');
+    if(e.dataTransfer.files.length) handleSheetFile(e.dataTransfer.files[0]);
+  });
+  sheetInput.addEventListener('change', e=>{ if(e.target.files.length) handleSheetFile(e.target.files[0]); });
+
+  function parsePilotSheet(workbook){
+    const sheetName = workbook.SheetNames.includes('Participants') ? 'Participants' : workbook.SheetNames[0];
+    const ws = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    let headerRowIdx = -1, idIdx=-1, nameIdx=-1, gliderIdx=-1;
+    for(let i=0;i<rows.length;i++){
+      const row = rows[i].map(c=>String(c).trim().toLowerCase());
+      const idc = row.indexOf('id');
+      const namec = row.indexOf('name');
+      if(idc !== -1 && namec !== -1){
+        headerRowIdx = i; idIdx = idc; nameIdx = namec; gliderIdx = row.indexOf('glider');
+        break;
+      }
+    }
+    if(headerRowIdx === -1) return null;
+    const result = [];
+    for(let i=headerRowIdx+1;i<rows.length;i++){
+      const row = rows[i];
+      const id = String(row[idIdx] ?? '').trim();
+      const name = String(row[nameIdx] ?? '').trim();
+      if(!id || !name) continue;
+      const glider = gliderIdx>=0 ? String(row[gliderIdx] ?? '').trim() : '';
+      result.push({ id, name, glider });
+    }
+    return result;
+  }
+
+  function handleSheetFile(file){
+    const toast = document.getElementById('orgToast');
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type:'array' });
+        const parsed = parsePilotSheet(wb);
+        const summary = document.getElementById('importSummary');
+        if(!parsed || !parsed.length){
+          summary.textContent = 'Não encontrei colunas "id" e "name" nessa planilha. Confirme que é a exportação de participantes do FSCOMP.';
+          summary.classList.add('show');
+          document.getElementById('saveSheetBtn').disabled = true;
+          importedPilots = null;
+          return;
+        }
+        importedPilots = parsed;
+        summary.textContent = `${parsed.length} piloto(s) encontrados: ${parsed.slice(0,3).map(p=>p.name).join(', ')}${parsed.length>3 ? '...' : ''}`;
+        summary.classList.add('show');
+        document.getElementById('saveSheetBtn').disabled = false;
+      }catch(err){
+        toast.textContent = 'Não consegui ler essa planilha: ' + (err.message || 'formato inválido');
+        toast.className = 'toast err show';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  document.getElementById('saveSheetBtn').addEventListener('click', async ()=>{
+    if(!importedPilots || !importedPilots.length) return;
+    await commitPilotList(importedPilots, `Lista salva: ${importedPilots.length} piloto(s) importados da planilha.`);
+  });
+
+  // ---------- Organizador: adicionar voos manualmente (IGC único ou ZIP) ----------
+  let manualItems = [];
+  let manualSeq = 0;
+  const MANUAL_MAX = 5 * 1024 * 1024;
+
+  function manualParseName(fileName){
+    const base = fileName.split(/[\\/]/).pop();
+    const m = base.match(/^(\d{4}-\d{2}-\d{2})-(.+)\.([^.]+)\.igc$/i);
+    return m ? { date: m[1], pilotId: m[3] } : { date: null, pilotId: null };
+  }
+
+  function manualAddItem(fileName, content){
+    const base = fileName.split(/[\\/]/).pop();
+    const parsed = manualParseName(base);
+    const pilot = parsed.pilotId ? pilots.find(p => String(p.id) === String(parsed.pilotId)) : null;
+    const date = parsed.date || extractDateFromIGC(content) || '';
+    manualItems.push({ key: ++manualSeq, fileName: base, content, pilotId: pilot ? String(pilot.id) : '', date, result: '' });
+  }
+
+  async function manualReadFiles(fileList){
+    for(const f of fileList){
+      const lower = f.name.toLowerCase();
+      try{
+        if(lower.endsWith('.zip')){
+          const zip = await JSZip.loadAsync(f);
+          const entries = Object.values(zip.files).filter(e => !e.dir && /\.igc$/i.test(e.name) && e.name.indexOf('__MACOSX') === -1 && !e.name.split('/').pop().startsWith('._'));
+          for(const e of entries) manualAddItem(e.name, await e.async('string'));
+        }else if(lower.endsWith('.igc')){
+          manualAddItem(f.name, await f.text());
+        }
+      }catch(err){
+        const t = document.getElementById('manualToast');
+        t.textContent = 'Não consegui ler ' + f.name + ': ' + (err && err.message ? err.message : err);
+        t.className = 'toast err show';
+      }
+    }
+    manualRender();
+  }
+
+  function manualProblem(it, seen){
+    if(it.result) return '';
+    if(!it.pilotId) return 'Escolha o piloto';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(it.date)) return 'Informe a data';
+    if(it.content.length > MANUAL_MAX) return 'Maior que 5 MB';
+    const k = it.pilotId + '|' + it.date;
+    if(seen.has(k)) return 'Repetido na lista';
+    return '';
+  }
+
+  function manualRender(){
+    const body = document.getElementById('manualBody');
+    const seen = new Set();
+    let ready = 0;
+    body.innerHTML = manualItems.map(it => {
+      const problem = manualProblem(it, seen);
+      if(!it.result && !problem) { ready++; }
+      if(it.pilotId && it.date) seen.add(it.pilotId + '|' + it.date);
+      const opts = '<option value="">— escolher —</option>' + pilots.map(p => `<option value="${escapeHtml(String(p.id))}"${String(p.id) === it.pilotId ? ' selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(String(p.id))})</option>`).join('');
+      const status = it.result ? escapeHtml(it.result) : (problem ? `<span style="color:var(--sink);">${problem}</span>` : 'Pronto');
+      return `<tr>
+        <td class="mono" style="word-break:break-all;">${escapeHtml(it.fileName)}</td>
+        <td><select data-manual-pilot="${it.key}" ${it.result === 'Enviado' ? 'disabled' : ''}>${opts}</select></td>
+        <td><input type="date" value="${escapeHtml(it.date)}" data-manual-date="${it.key}" ${it.result === 'Enviado' ? 'disabled' : ''}></td>
+        <td>${status}</td>
+        <td><span class="refresh-link" data-manual-remove="${it.key}">remover</span></td>
+      </tr>`;
+    }).join('');
+    document.getElementById('manualTable').style.display = manualItems.length ? '' : 'none';
+    document.getElementById('manualSendBtn').disabled = ready === 0;
+    document.getElementById('manualSendBtn').textContent = ready ? `Enviar ${ready} voo${ready > 1 ? 's' : ''}` : 'Enviar voos';
+    document.getElementById('manualClearBtn').disabled = manualItems.length === 0;
+  }
+
+  document.getElementById('manualPickBtn').addEventListener('click', () => document.getElementById('manualFiles').click());
+  document.getElementById('manualFiles').addEventListener('change', async e => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if(files.length) await manualReadFiles(files);
+  });
+  document.getElementById('manualClearBtn').addEventListener('click', () => { manualItems = []; manualRender(); });
+  document.getElementById('manualBody').addEventListener('change', e => {
+    const t = e.target;
+    const kp = t.getAttribute('data-manual-pilot'), kd = t.getAttribute('data-manual-date');
+    const it = manualItems.find(x => String(x.key) === (kp || kd));
+    if(!it) return;
+    if(kp) it.pilotId = t.value; else it.date = t.value;
+    manualRender();
+  });
+  document.getElementById('manualBody').addEventListener('click', e => {
+    const k = e.target.getAttribute('data-manual-remove');
+    if(!k) return;
+    manualItems = manualItems.filter(x => String(x.key) !== k);
+    manualRender();
+  });
+
+  document.getElementById('manualSendBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('manualSendBtn');
+    const toast = document.getElementById('manualToast');
+    btn.disabled = true;
+    const seen = new Set();
+    let ok = 0, dup = 0, bad = 0;
+    for(const it of manualItems){
+      const problem = manualProblem(it, seen);
+      if(it.pilotId && it.date) seen.add(it.pilotId + '|' + it.date);
+      if(it.result || problem) continue;
+      const pilot = pilots.find(p => String(p.id) === it.pilotId);
+      const filename = `${it.date}-${normalizeName(pilot.name)}.${pilot.id}.igc`;
+      try{
+        const { data, error } = await sb.rpc('organizer_submit_flight', {
+          p_pilot_id: String(pilot.id), p_date: it.date, p_pilot_name: pilot.name,
+          p_filename: filename, p_original_name: it.fileName, p_content: it.content
+        });
+        if(error) throw error;
+        if(data === 'ok'){ it.result = 'Enviado'; ok++; }
+        else if(data === 'already_submitted'){ it.result = 'Já existia um voo desse piloto nesse dia'; dup++; }
+        else if(data === 'not_authorized'){ it.result = 'Entre como organizador para enviar'; bad++; }
+        else if(data === 'too_large'){ it.result = 'Maior que 5 MB'; bad++; }
+        else { it.result = 'Resposta inesperada: ' + data; bad++; }
+      }catch(err){
+        it.result = 'Erro: ' + (err && err.message ? err.message : err); bad++;
+      }
+      manualRender();
+    }
+    toast.textContent = `${ok} enviado${ok === 1 ? '' : 's'}` + (dup ? `, ${dup} já existia${dup === 1 ? '' : 'm'}` : '') + (bad ? `, ${bad} com erro` : '') + '.';
+    toast.className = 'toast ' + (bad ? 'err' : 'ok') + ' show';
+    manualRender();
+    if(ok){ loadFlights(); loadSubmissionStatus(); }
+  });
+
+  // ---------- Organizer: manual paste ----------
+  document.getElementById('savePilotsBtn').addEventListener('click', async ()=>{
+    const raw = document.getElementById('pilotCsv').value.trim();
+    const toast = document.getElementById('orgToast');
+    if(!raw){
+      toast.textContent = 'Cole a lista de pilotos primeiro.';
+      toast.className = 'toast err show';
+      return;
+    }
+    const lines = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    const parsed = [];
+    for(const line of lines){
+      const parts = line.split(',');
+      if(parts.length < 2) continue;
+      const id = parts.pop().trim();
+      const name = parts.join(',').trim();
+      if(name && id) parsed.push({ id, name, glider:'' });
+    }
+    if(!parsed.length){
+      toast.textContent = 'Não consegui reconhecer nenhuma linha. Use o formato: Nome completo, ID';
+      toast.className = 'toast err show';
+      return;
+    }
+    await commitPilotList(parsed, `Lista salva: ${parsed.length} piloto(s).`);
+  });
+
+  async function commitPilotList(list, successMsg){
+    const toast = document.getElementById('orgToast');
+    try{
+      const { error: delErr } = await sb.from('pilots').delete().not('id', 'is', null);
+      if(delErr) throw delErr;
+      const { error: insErr } = await sb.from('pilots').insert(list);
+      if(insErr) throw insErr;
+      await loadPilots();
+      toast.textContent = successMsg;
+      toast.className = 'toast ok show';
+    }catch(e){
+      toast.textContent = 'Erro ao salvar a lista: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+  }
+
+  // ---------- Organizer: DNF / ABS marking ----------
+  let selectedDnfPilot = null;
+
+  function populateDnfDaySelect(){
+    const sel = document.getElementById('dnfDaySelect');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = eventDays.map(d => `<option value="${d.event_date}">${escapeHtml(d.label)} — ${formatDateBR(d.event_date)}</option>`).join('');
+    if([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  makePilotCombo(document.getElementById('dnfPilotSearch'), document.getElementById('dnfPilotList'), (p)=>{
+    selectedDnfPilot = p;
+    const box = document.getElementById('dnfSelectedBox');
+    const markDnf = document.getElementById('markDnfBtn');
+    const markAbs = document.getElementById('markAbsBtn');
+    const markEnviado = document.getElementById('markEnviadoBtn');
+    const clearBtn = document.getElementById('clearDnfBtn');
+    if(!p){
+      box.classList.remove('show');
+      markDnf.disabled = true; markAbs.disabled = true; markEnviado.disabled = true; clearBtn.disabled = true;
+      return;
+    }
+    box.classList.add('show');
+    document.getElementById('dnfSelName').textContent = p.name;
+    document.getElementById('dnfSelId').textContent = 'ID '+p.id;
+    markDnf.disabled = false; markAbs.disabled = false; markEnviado.disabled = false; clearBtn.disabled = false;
+  });
+
+  document.getElementById('dnfDaySelect').addEventListener('change', loadDnfList);
+
+  async function setDnfStatus(status){
+    if(!selectedDnfPilot) return;
+    const date = document.getElementById('dnfDaySelect').value;
+    const toast = document.getElementById('dnfToast');
+    if(!date){
+      toast.textContent = 'Cadastre um dia primeiro, na seção acima.';
+      toast.className = 'toast err show';
+      return;
+    }
+    try{
+      const { error } = await sb.from('pilot_day_status').upsert({ pilot_id: selectedDnfPilot.id, event_date: date, status });
+      if(error) throw error;
+      toast.textContent = `${selectedDnfPilot.name} marcado como ${status} nesse dia.`;
+      toast.className = 'toast ok show';
+      await loadDnfList();
+    }catch(e){
+      toast.textContent = 'Erro ao marcar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+  }
+
+  document.getElementById('markDnfBtn').addEventListener('click', ()=> setDnfStatus('DNF'));
+  document.getElementById('markAbsBtn').addEventListener('click', ()=> setDnfStatus('ABS'));
+  document.getElementById('markEnviadoBtn').addEventListener('click', ()=> setDnfStatus('ENVIADO'));
+
+  document.getElementById('clearDnfBtn').addEventListener('click', async ()=>{
+    if(!selectedDnfPilot) return;
+    const date = document.getElementById('dnfDaySelect').value;
+    const toast = document.getElementById('dnfToast');
+    if(!date) return;
+    try{
+      const { error } = await sb.from('pilot_day_status').delete().eq('pilot_id', selectedDnfPilot.id).eq('event_date', date);
+      if(error) throw error;
+      toast.textContent = 'Marcação removida.';
+      toast.className = 'toast ok show';
+      await loadDnfList();
+    }catch(e){
+      toast.textContent = 'Erro ao remover: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+  });
+
+  async function loadDnfList(){
+    const wrap = document.getElementById('dnfListWrap');
+    const date = document.getElementById('dnfDaySelect').value;
+    if(!date){ wrap.innerHTML = ''; return; }
+    try{
+      const { data, error } = await sb.from('pilot_day_status').select('*').eq('event_date', date);
+      if(error) throw error;
+      if(!data.length){
+        wrap.innerHTML = '<div class="empty" style="padding:8px 0;">Ninguém marcado nesse dia.</div>';
+        return;
+      }
+      wrap.innerHTML = data.map(r=>{
+        const p = pilots.find(pp => pp.id === r.pilot_id);
+        return `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">
+          <span>${escapeHtml(p ? p.name : r.pilot_id)}</span>
+          <span class="mono" style="color:var(--sink); font-weight:600;">${escapeHtml(r.status)}</span>
+        </div>`;
+      }).join('');
+    }catch(e){
+      wrap.innerHTML = '<div class="empty" style="padding:8px 0;">Erro ao carregar marcações.</div>';
+    }
+  }
+
+  // ---------- Organizer: reset PIN ----------
+  let resetPinTarget = null;
+  makePilotCombo(document.getElementById('resetPinSearch'), document.getElementById('resetPinList'), (p)=>{
+    resetPinTarget = p;
+    const box = document.getElementById('resetPinSelectedBox');
+    const btn = document.getElementById('resetPinBtn');
+    if(!p){
+      box.classList.remove('show');
+      btn.disabled = true;
+      return;
+    }
+    box.classList.add('show');
+    document.getElementById('resetPinSelName').textContent = p.name;
+    document.getElementById('resetPinSelId').textContent = 'ID '+p.id;
+    btn.disabled = false;
+  });
+
+  document.getElementById('resetPinBtn').addEventListener('click', async ()=>{
+    if(!resetPinTarget) return;
+    const toast = document.getElementById('resetPinToast');
+    const btn = document.getElementById('resetPinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Resetando...';
+    try{
+      const { data, error } = await sb.from('pilot_pins').delete().eq('pilot_id', resetPinTarget.id).select();
+      if(error) throw error;
+      if(!data || data.length === 0){
+        toast.textContent = 'Nada foi apagado — esse piloto pode já não ter PIN cadastrado, ou sua sessão de login expirou. Tenta sair e entrar de novo na aba Organizador e repetir.';
+        toast.className = 'toast err show';
+      } else {
+        toast.textContent = `PIN de ${resetPinTarget.name} resetado. Ele já pode cadastrar um novo.`;
+        toast.className = 'toast ok show';
+      }
+    }catch(e){
+      toast.textContent = 'Erro ao resetar: ' + (e.message || 'erro desconhecido');
+      toast.className = 'toast err show';
+    }
+    btn.textContent = 'Resetar PIN desse piloto';
+    btn.disabled = false;
+  });
+
+  function populateFlightsDayFilter(){
+    const sel = document.getElementById('flightsDayFilter');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Todos os dias</option>' +
+      eventDays.map(d => `<option value="${d.event_date}">${escapeHtml(d.label)} — ${formatDateBR(d.event_date)}</option>`).join('');
+    if([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  function getFilteredFlights(){
+    const sel = document.getElementById('flightsDayFilter');
+    const val = sel ? sel.value : '';
+    if(!val) return currentFlights;
+    return currentFlights.filter(f => f.flight_date === val);
+  }
+
+  function updateFlightActionLabels(){
+    const val = document.getElementById('flightsDayFilter').value;
+    document.getElementById('downloadAllBtn').textContent = val ? 'Baixar ZIP deste dia' : 'Baixar todos em ZIP';
+    document.getElementById('clearFlightsBtn').textContent = val ? 'Apagar voos deste dia' : 'Apagar todos os voos';
+  }
+
+  document.getElementById('flightsDayFilter').addEventListener('change', ()=>{
+    renderFlightsList();
+    updateFlightActionLabels();
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', loadFlights);
+
+  async function loadFlights(){
+    try{
+      const { data, error } = await sb.from('flights').select('*').order('submitted_at', { ascending:false });
+      if(error) throw error;
+      currentFlights = data || [];
+      Object.keys(airspaceStatusCache).forEach(k => delete airspaceStatusCache[k]);
+      renderFlightsList();
+      updateFlightActionLabels();
+    }catch(e){
+      document.getElementById('flightsTable').style.display = 'none';
+      const empty = document.getElementById('flightsEmpty');
+      empty.style.display = 'block';
+      empty.textContent = 'Erro ao carregar os voos: ' + (e.message || 'erro desconhecido');
+    }
+  }
+
+  const airspaceStatusCache = {};
+
+  async function computeAirspaceStatus(f, cellEl){
+    if(airspaceStatusCache[f.id]){
+      const r = airspaceStatusCache[f.id];
+      cellEl.textContent = r.label;
+      cellEl.style.color = r.color;
+      return;
+    }
+    cellEl.textContent = '...';
+    cellEl.style.color = 'var(--text-muted)';
+    try{
+      const result = await checkFlight(f.content, f.flight_date);
+      const violations = result.violations || [];
+      const r = violations.length
+        ? { label: `⚠️ Invasão (${violations.length})`, color:'var(--sink)' }
+        : { label: 'OK', color:'var(--lift)' };
+      airspaceStatusCache[f.id] = r;
+      cellEl.textContent = r.label;
+      cellEl.style.color = r.color;
+    }catch(e){
+      cellEl.textContent = '—';
+      cellEl.style.color = 'var(--text-muted)';
+    }
+  }
+
+  function renderFlightsList(){
+    const body = document.getElementById('flightsBody');
+    const table = document.getElementById('flightsTable');
+    const empty = document.getElementById('flightsEmpty');
+    const zipBtn = document.getElementById('downloadAllBtn');
+    const clearBtn = document.getElementById('clearFlightsBtn');
+    const filtered = getFilteredFlights();
+    body.innerHTML = '';
+    document.getElementById('statCount').textContent = filtered.length;
+    zipBtn.disabled = !filtered.length;
+    clearBtn.disabled = !filtered.length;
+    if(!filtered.length){
+      table.style.display = 'none';
+      empty.style.display = 'block';
+      empty.textContent = 'Nenhum voo recebido' + (document.getElementById('flightsDayFilter').value ? ' nesse dia.' : ' ainda.');
+      return;
+    }
+    table.style.display = 'table';
+    empty.style.display = 'none';
+    filtered.forEach(f=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(f.pilot_name)}</td>
+        <td class="mono">${escapeHtml(f.pilot_id)}</td>
+        <td>${escapeHtml(f.flight_date)}</td>
+        <td class="mono">${escapeHtml(f.filename)}</td>
+        <td class="air-status-cell" style="color:var(--text-muted); font-weight:600; font-size:12.5px;">verificando...</td>
+        <td><button class="dl-btn">Baixar</button> <button class="dl-btn" style="border-color:var(--sink); color:var(--sink); margin-left:4px;">Apagar</button></td>
+      `;
+      const [dlBtn, delBtn] = tr.querySelectorAll('.dl-btn');
+      dlBtn.addEventListener('click', ()=> downloadFlight(f));
+      computeAirspaceStatus(f, tr.querySelector('.air-status-cell'));
+      delBtn.addEventListener('click', async ()=>{
+        const sure = await appConfirm(`Apagar o voo de ${f.pilot_name} (${f.flight_date})? O piloto vai poder reenviar depois.`);
+        if(!sure) return;
+        try{
+          const { error } = await sb.from('flights').delete().eq('id', f.id);
+          if(error) throw error;
+          await loadFlights();
+        }catch(e){
+          await appAlert('Não consegui apagar: ' + (e.message || 'erro desconhecido'));
+        }
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function downloadFlight(f){
+    const blob = new Blob([f.content], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById('downloadAllBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('downloadAllBtn');
+    const filtered = getFilteredFlights();
+    if(!filtered.length) return;
+    const originalText = btn.textContent;
+    btn.textContent = 'Gerando ZIP...';
+    btn.disabled = true;
+    try{
+      const zip = new JSZip();
+      filtered.forEach(f => zip.file(f.filename, f.content));
+      const blob = await zip.generateAsync({ type:'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const filterVal = document.getElementById('flightsDayFilter').value;
+      const dayLabel = filterVal ? eventDays.find(d => d.event_date === filterVal)?.label : null;
+      const suffix = dayLabel ? '-' + normalizeName(dayLabel) : '';
+      const today = new Date().toISOString().slice(0,10);
+      a.href = url;
+      a.download = `voos${suffix}-${today}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }catch(e){
+      await appAlert('Não consegui gerar o ZIP: ' + (e.message || 'erro desconhecido'));
+    }
+    btn.textContent = originalText;
+    btn.disabled = false;
+  });
+
+  document.getElementById('clearFlightsBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('clearFlightsBtn');
+    const filtered = getFilteredFlights();
+    if(!filtered.length) return;
+    const filterVal = document.getElementById('flightsDayFilter').value;
+    const dayLabel = filterVal ? eventDays.find(d => d.event_date === filterVal)?.label : null;
+    const scopeText = dayLabel ? `do dia "${dayLabel}"` : 'de TODOS os dias';
+    const sure = await appConfirm(`Tem certeza que quer apagar os ${filtered.length} voo(s) ${scopeText}? Isso não pode ser desfeito. Baixe o ZIP antes, se ainda não baixou.`);
+    if(!sure) return;
+    btn.disabled = true;
+    btn.textContent = 'Apagando...';
+    try{
+      let query = sb.from('flights').delete();
+      query = filterVal ? query.eq('flight_date', filterVal) : query.not('id', 'is', null);
+      const { error } = await query;
+      if(error) throw error;
+      await loadFlights();
+    }catch(e){
+      await appAlert('Não consegui apagar os voos: ' + (e.message || 'erro desconhecido'));
+    }
+    btn.disabled = false;
+    updateFlightActionLabels();
+  });
+
+  loadPilots();
+  loadEventDays();
+  loadDayResults();
+  loadEventSettings();
+</script>
+</body>
+</html>
