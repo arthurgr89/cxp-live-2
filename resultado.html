@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resultado da prova — CXP Live</title>
+<style>
+  body{ margin:0; background:#0b1220; color:#fff; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+        display:flex; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:20px; box-sizing:border-box; }
+  a{ display:inline-block; margin-top:18px; background:#0066FF; color:#111; font-weight:600; text-decoration:none; padding:12px 22px; border-radius:7px; }
+</style>
+</head>
+<body>
+<div id="msg">Carregando resultado...</div>
+<script>
+(function(){
+  const SUPABASE_URL = 'https://ruyohfjxtznvqyznseva.supabase.co';
+  const ANON_KEY = 'sb_publishable_s1n1hmRcNSUbHenGsOcdWg_p9HhseMC';
+  const msg = document.getElementById('msg');
+  const voltar = '<br><a href="/">Voltar para CXP</a>';
+  const dia = new URLSearchParams(location.search).get('dia') || '';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)){
+    msg.innerHTML = 'Resultado não encontrado.' + voltar;
+    return;
+  }
+  fetch(SUPABASE_URL + '/rest/v1/day_results?event_date=eq.' + dia + '&select=html',
+        { headers: { apikey: ANON_KEY } })
+    .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(rows => {
+      if(!rows.length || !rows[0].html){
+        msg.innerHTML = 'Resultado ainda não disponível.' + voltar;
+        return;
+      }
+      document.open();
+      document.write(rows[0].html);
+      document.close();
+    })
+    .catch(() => { msg.innerHTML = 'Não consegui carregar o resultado. Tente de novo em instantes.' + voltar; });
+})();
+</script>
+</body>
+</html>
