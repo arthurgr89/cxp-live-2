@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CXP Live 2</title>
+<title>CXP Live</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -579,9 +579,9 @@
 </div>
 
 <script>
-  const SUPABASE_URL = 'COLE_AQUI_A_URL_DO_PROJETO';
-  const SUPABASE_ANON_KEY = 'COLE_AQUI_A_CHAVE_ANON';
-  if(SUPABASE_URL.indexOf('https://ruyohfjxtznvqyznseva.supabase.co') !== -1 || SUPABASE_ANON_KEY.indexOf('sb_publishable_s1n1hmRcNSUbHenGsOcdWg_p9HhseMC') !== -1){
+  const SUPABASE_URL = 'https://ruyohfjxtznvqyznseva.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_s1n1hmRcNSUbHenGsOcdWg_p9HhseMC';
+  if(SUPABASE_URL.indexOf('COLE_AQUI') !== -1 || SUPABASE_ANON_KEY.indexOf('COLE_AQUI') !== -1){
     document.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="background:#b91c1c;color:#fff;padding:14px;font:600 14px sans-serif;text-align:center;">Falta configurar: coloque a URL e a chave anon do projeto novo no começo do script (SUPABASE_URL e SUPABASE_ANON_KEY).</div>'); });
   }
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
